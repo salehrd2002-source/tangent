@@ -313,6 +313,16 @@ No formal definitions unless they help. No praise or filler. Put maths between s
 
   // ------------------------------------------------------------------ router
   let view = { name: 'home' };
+  const SVG = (d) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + d + '</svg>';
+  const ICONS = {
+    home: SVG('<path d="M4 20l1-5L16 4l4 4L9 19l-5 1z"/><path d="M14 6l4 4"/>'),
+    patterns: SVG('<path d="M5 20V11M12 20V4M19 20v-6"/>'),
+    concepts: SVG('<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/>'),
+    settings: SVG('<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>'),
+    camera: SVG('<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>'),
+  };
+  const icon = (n) => h('span', { innerHTML: ICONS[n], 'aria-hidden': 'true', style: 'display:grid' });
+  const ART = '<svg viewBox="0 0 320 96" fill="none" stroke-linecap="round"><path d="M100 82L220 2" stroke="#1d2145" stroke-width="3.5"/><path d="M16 84C90 80 150 60 200 8" stroke="#5b4bff" stroke-width="7"/><circle cx="160.6" cy="41.3" r="9" fill="#fff" stroke="#1d2145" stroke-width="4"/><path d="M262 28v16M254 36h16M290 64v10M285 69h10" stroke="#1d2145" stroke-width="3.5"/><circle cx="44" cy="26" r="7" fill="#ff7a59"/><circle cx="302" cy="22" r="5" fill="#12996a"/></svg>';
   const TABS = [['home', 'Practise'], ['patterns', 'Patterns'], ['concepts', 'Concepts'], ['settings', 'Settings']];
   const FOCUS = new Set(['capture', 'working', 'confirm', 'result', 'redo', 'concept', 'category']);
 
@@ -320,7 +330,7 @@ No formal definitions unless they help. No praise or filler. Put maths between s
   function refresh() {
     document.body.classList.toggle('focus', FOCUS.has(view.name));
     tabsEl.replaceChildren(...TABS.map(([name, label]) =>
-      h('button', { 'aria-current': view.name === name ? 'page' : null, onclick: () => go({ name }) }, label)));
+      h('button', { 'aria-current': view.name === name ? 'page' : null, onclick: () => go({ name }) }, icon(name), label)));
     main.replaceChildren(...[].concat(VIEWS[view.name](view)).filter(Boolean));
   }
   const topbar = (label, onBack, right) => h('div', { class: 'topbar' }, h('button', { onclick: onBack }, '‹ ' + label), right || h('span', {}));
@@ -335,12 +345,15 @@ No formal definitions unless they help. No praise or filler. Put maths between s
     const focus = topPattern(21);
     const recent = store.exercises.slice(0, 8);
     return [
-      h('h1', {}, 'Practise'),
-      h('p', { class: 'lede' }, 'Solve on paper. Photograph it. Find out where it first goes wrong.'),
+      h('div', { class: 'hero' },
+        h('div', { class: 'art', innerHTML: ART }),
+        h('h1', {}, store.exercises.length ? 'Ready for another one?' : 'Let’s do some calculus'),
+        h('p', {}, 'Solve it on paper, take a photo, and see exactly where it went wrong.'),
+        h('button', { class: 'btn primary big', onclick: () => pickPhotos(() => go({ name: 'capture' })) }, icon('camera'), 'Take a photo'),
+        h('button', { class: 'btn quiet', onclick: () => go({ name: 'confirm', draft: { exId: null, problem: { text: '', expr: '', variable: 'x' }, steps: [], note: null } }) }, 'or type it in')),
       !store.settings.key && h('div', { class: 'notice' }, 'To read photos, the app needs your DeepSeek API key. ',
         h('a', { href: '#', onclick: (e) => { e.preventDefault(); go({ name: 'settings' }); } }, 'Add it in Settings.')),
       !storageOk && h('div', { class: 'notice bad' }, 'Your history could not be saved on this device. Export a backup from Settings.'),
-      h('button', { class: 'btn primary', onclick: () => go({ name: 'capture' }) }, 'Check my work'),
 
       due.length ? h('h2', {}, 'Due for another try') : null,
       due.length ? h('div', { class: 'list' }, due.map((ex) =>
@@ -359,10 +372,10 @@ No formal definitions unless they help. No praise or filler. Put maths between s
   };
 
   function exerciseItem(ex) {
-    const label = { correct: 'Correct', wrong: 'Line ' + ((lastAttempt(ex).firstWrong | 0) + 1), open: 'Unfinished' }[ex.status] || '';
+    const label = { correct: 'Correct', wrong: 'Check line ' + ((lastAttempt(ex).firstWrong | 0) + 1), open: 'Unfinished' }[ex.status] || '';
     return h('button', { class: 'item', onclick: () => go({ name: 'result', exId: ex.id }) },
       h('div', { class: 'grow' }, problemEl(ex.problem), h('div', { class: 'muted small' }, fmtDate(ex.created))),
-      h('span', { class: 'meta', style: ex.status === 'wrong' ? 'color:var(--bad)' : '' }, label));
+      h('span', { class: 'pill ' + ex.status }, label));
   }
 
   VIEWS.redo = (v) => {
@@ -381,12 +394,17 @@ No formal definitions unless they help. No praise or filler. Put maths between s
 
   // ---- capture
   let shots = [];
+  function pickPhotos(done) {
+    const input = h('input', { type: 'file', accept: 'image/*', multiple: true, style: 'display:none', onchange: async (e) => {
+      for (const file of e.target.files) { try { shots.push(await shrink(file)); } catch (err) { alert(err.message); } }
+      input.remove();
+      done();
+    } });
+    document.body.append(input);
+    input.click();
+  }
   VIEWS.capture = (v) => {
     const ex = v.exId && store.exercises.find((e) => e.id === v.exId);
-    const picker = h('input', { type: 'file', accept: 'image/*', multiple: true, style: 'display:none', onchange: async (e) => {
-      for (const f of e.target.files) { try { shots.push(await shrink(f)); } catch (err) { alert(err.message); } }
-      refresh();
-    } });
     const problemInput = h('input', { type: 'text', placeholder: 'e.g. differentiate x² sin x', value: v.text || '', oninput: (e) => { v.text = e.target.value; } });
     const read = async () => {
       const images = shots.slice();
@@ -409,16 +427,15 @@ No formal definitions unless they help. No praise or filler. Put maths between s
     };
     return [
       topbar('Cancel', () => { shots = []; go({ name: 'home' }); }),
-      h('h1', {}, ex ? 'New attempt' : 'Check my work'),
-      h('p', { class: 'lede' }, 'One photo per page, taken straight on, in good light. One step per line reads best.'),
+      h('h1', {}, ex ? 'New attempt' : (shots.length ? 'Looks good?' : 'Check my work')),
+      h('p', { class: 'lede' }, 'Hold the phone straight above the page, in good light.'),
       v.error && h('div', { class: 'notice bad' }, v.error),
       ex ? h('div', { class: 'card' }, problemEl(ex.problem)) : h('label', { class: 'field' }, h('span', {}, 'Problem (leave empty if it is in the photo)'), problemInput),
-      picker,
       shots.length ? h('div', { class: 'thumbs' }, shots.map((src, i) => h('div', { class: 'thumb' }, h('img', { src, alt: 'Page ' + (i + 1) }),
         h('button', { 'aria-label': 'Remove page ' + (i + 1), onclick: () => { shots.splice(i, 1); refresh(); } }, '×')))) : null,
       h('div', { class: 'stack', style: 'margin-top:16px' },
-        h('button', { class: 'btn' + (shots.length ? '' : ' primary'), onclick: () => picker.click() }, shots.length ? 'Add another page' : 'Take or choose a photo'),
-        shots.length ? h('button', { class: 'btn primary', onclick: read }, 'Read my work') : null,
+        h('button', { class: 'btn' + (shots.length ? '' : ' primary'), onclick: () => pickPhotos(refresh) }, shots.length ? 'Add another page' : [icon('camera'), 'Take a photo']),
+        shots.length ? h('button', { class: 'btn primary big', onclick: read }, 'Check it') : null,
         h('button', { class: 'btn quiet', onclick: () => {
           shots = [];
           go({ name: 'confirm', draft: { exId: ex ? ex.id : null, problem: ex ? ex.problem : { text: v.text || '', expr: '', variable: 'x' }, steps: [], note: null } });
@@ -427,7 +444,7 @@ No formal definitions unless they help. No praise or filler. Put maths between s
     ];
   };
 
-  VIEWS.working = (v) => h('div', { class: 'working' }, h('div', { class: 'pulse' }), h('div', {}, v.message));
+  VIEWS.working = (v) => h('div', { class: 'working' }, h('div', { class: 'dots' }, h('i', {}), h('i', {}), h('i', {})), h('div', {}, v.message));
 
   // ---- confirm
   VIEWS.confirm = (v) => {
@@ -504,16 +521,15 @@ No formal definitions unless they help. No praise or filler. Put maths between s
     const k = at.firstWrong;
     const okCount = at.results.filter((r) => r === 'ok').length;
     const unv = at.results.filter((r) => r === 'unverified').length;
-    const verdict = ex.status === 'wrong' ? 'Line ' + (k + 1) + ' is where it first goes wrong.'
-      : ex.status === 'correct' ? 'Every line checks out.'
-      : okCount ? 'Correct so far.' : 'Nothing here could be checked.';
-    const sub = ex.status === 'wrong' ? (k === 0 ? 'It does not follow from the problem.' : 'Lines 1–' + k + ' are fine. Look at how you got from line ' + k + ' to line ' + (k + 1) + '.')
+    const verdict = ex.status === 'wrong' ? 'Almost! Take another look at line ' + (k + 1) + '.'
+      : ex.status === 'correct' ? 'Every line checks out. Nice work!'
+      : okCount ? 'Correct so far. Keep going!' : 'Nothing here could be checked.';
+    const sub = ex.status === 'wrong' ? (k === 0 ? 'It does not follow from the problem.' : (k === 1 ? 'Line 1 is fine' : 'Lines 1–' + k + ' are fine') + '. Look at how you got from line ' + k + ' to line ' + (k + 1) + '.')
       : okCount + (okCount === 1 ? ' line' : ' lines') + ' verified by calculation' + (unv ? ', ' + unv + ' could not be checked.' : '.');
 
     const out = [
       topbar('Done', () => go({ name: 'home' }), h('button', { onclick: () => { if (confirm('Delete this exercise from your history?')) { store.exercises = store.exercises.filter((e) => e !== ex); save(); go({ name: 'home' }); } } }, 'Delete')),
-      h('div', { class: 'verdict' }, verdict),
-      h('p', { class: 'muted' }, sub),
+      h('div', { class: 'banner ' + ex.status }, h('div', { class: 'verdict' }, verdict), h('p', {}, sub)),
       h('div', { class: 'steps' },
         h('div', { class: 'step problem' }, h('span', { class: 'n' }, ''), h('div', { class: 'body' }, problemEl(ex.problem), h('div', { class: 'tag' }, 'Problem'))),
         at.steps.map((s, i) => h('div', { class: 'step' + (i === k ? ' first-wrong' : '') + (k >= 0 && i > k ? ' after' : '') },
@@ -535,7 +551,7 @@ No formal definitions unless they help. No praise or filler. Put maths between s
 
   function diagPanel(ex, at) {
     const d = at.diagnosis;
-    if (at.diagnosing) return h('div', { class: 'diag' }, h('span', { class: 'muted' }, 'Working out what happened on that line…'));
+    if (at.diagnosing) return h('div', { class: 'diag' }, h('div', { class: 'dots', style: 'margin-bottom:10px' }, h('i', {}), h('i', {}), h('i', {})), h('div', { style: 'text-align:center' }, 'Working out what happened on that line…'));
     if (!d) return h('div', { class: 'diag' },
       h('p', {}, at.diagError || 'No explanation yet.'),
       h('button', { class: 'btn', onclick: () => diagnose(ex, at) }, 'Ask for an explanation'));
