@@ -18,6 +18,7 @@
     identity: { name: 'Trig, exponential or log identity', advice: 'Keep a short list of the identities you actually use and test each one with a number when unsure.' },
     copying: { name: 'Copying error', advice: 'A term changed between lines without a reason. Tick each term off as you carry it down.' },
     concept: { name: 'Conceptual misunderstanding', advice: 'This is about what the idea means, not the mechanics. Open Concepts and work through it.' },
+    integration: { name: 'Integration technique', advice: 'Differentiate your answer to test it. If you do not get the integrand back, the technique was applied wrongly.' },
     other: { name: 'Other', advice: '' },
   };
 
@@ -138,6 +139,7 @@
 - Functions: sin cos tan sec csc cot asin acos atan sinh cosh tanh sqrt(x) abs(x) exp(x) ln(x) log10(x). Constants: e, pi, Infinity.
 - Derivative with respect to the problem variable: D(f). A second derivative is D(D(f)). A prime written by the student, such as (x^2)', is D(x^2).
 - Limit as the problem variable goes to a: lim(f, a). One-sided: lim(f, a, 1) from the right, lim(f, a, -1) from the left. Limit in a different variable h: lim(f, h, a).
+- Indefinite integral with respect to the problem variable: int(f). Definite integral from a to b: int(f, a, b). Write the constant of integration as + C.
 - No LaTeX, no equals sign unless stated, no words.`;
 
   const TRANSCRIBE = `You transcribe a student's handwritten calculus work so that a separate program can check it.
@@ -179,7 +181,7 @@ Return one JSON object:
   "concept": string|null      // if conceptual: two or three sentences on what the idea actually means
 }
 
-Category meanings: sign = lost or flipped sign; algebra = expanding, factoring, fractions, exponents; chain = inner derivative missing or wrong; product_quotient = product/quotient rule structure wrong; basic_derivative = a standard derivative remembered wrongly; indeterminate = treated an indeterminate form as a value or substituted too early; lhopital = L'Hôpital applied when not allowed or applied as quotient rule; limit_law = split or combined limits illegitimately, bad arithmetic with infinity; identity = trig/exp/log identity wrong; copying = a term changed or vanished between lines; concept = misunderstanding of the idea itself; other = none of these.
+Category meanings: sign = lost or flipped sign; algebra = expanding, factoring, fractions, exponents; chain = inner derivative missing or wrong; product_quotient = product/quotient rule structure wrong; basic_derivative = a standard derivative remembered wrongly; indeterminate = treated an indeterminate form as a value or substituted too early; lhopital = L'Hôpital applied when not allowed or applied as quotient rule; limit_law = split or combined limits illegitimately, bad arithmetic with infinity; identity = trig/exp/log identity wrong; copying = a term changed or vanished between lines; integration = substitution, integration by parts or an antiderivative applied wrongly; concept = misunderstanding of the idea itself; other = none of these.
 
 Write to the student directly, briefly, in a calm and precise tone. No praise, no exclamation marks. Put any maths inside the strings between single dollar signs as LaTeX, e.g. "$\\\\cos(3x^2)$".
 
@@ -237,11 +239,12 @@ No formal definitions unless they help. No praise or filler. Put maths between s
     if (results.some((r) => r === 'wrong')) return 'wrong';
     let last = -1;
     steps.forEach((s, i) => { if (s.role !== 'aside') last = i; });
-    const finished = last >= 0 && results[last] === 'ok' && !/\b(D|lim)\s*\(/.test(steps[last].expr || '');
+    const finished = last >= 0 && results[last] === 'ok' && !/\b(D|lim|int)\s*\(/.test(steps[last].expr || '');
     return finished ? 'correct' : 'open';
   }
 
   function runCheck(draft) {
+    const before = stats();
     const res = Engine.check(draft.problem, draft.steps);
     const attempt = {
       at: Date.now(), steps: draft.steps,
@@ -257,9 +260,11 @@ No formal definitions unless they help. No praise or filler. Put maths between s
     ex.attempts.push(attempt);
     ex.status = judge(attempt.steps, attempt.results);
     if (ex.status === 'wrong') ex.redoAt = Date.now() + 3 * DAY;
-    else if (ex.status === 'correct' && ex.redoAt && Date.now() >= ex.redoAt) ex.redoAt = null;
+    else if (ex.status === 'correct' && ex.redoAt && Date.now() >= ex.redoAt) { ex.redoAt = null; ex.redoCleared = (ex.redoCleared || 0) + 1; }
+    const after = stats();
+    attempt.gain = Math.max(0, after.xp - before.xp);
     save();
-    go({ name: 'result', exId: ex.id });
+    go({ name: 'result', exId: ex.id, fresh: { levelUp: after.level > before.level ? after.level : 0, newBest: after.best > before.best ? after.best : 0 } });
     if (ex.status === 'wrong') diagnose(ex, attempt);
   }
 
@@ -311,6 +316,67 @@ No formal definitions unless they help. No praise or filler. Put maths between s
     attempt.nudging = false; save(); refresh();
   }
 
+  // ------------------------------------------------------------------ progress
+  // Everything here is derived from the exercise history; nothing extra is stored.
+  const RANKS = ['Cadet', 'Rookie', 'Operator', 'Specialist', 'Sharpshooter', 'Ace', 'Elite', 'Commander', 'Legend'];
+  const rankOf = (level) => RANKS[Math.min(RANKS.length - 1, Math.floor((level - 1) / 2))];
+  const statusOf = (a) => judge(a.steps, a.results);
+  const okLines = (a) => a.results.filter((r) => r === 'ok').length;
+
+  function exerciseXp(ex) {
+    let xp = 10 * ex.attempts.reduce((best, a) => Math.max(best, okLines(a)), 0);
+    let wasWrong = false, done = false;
+    ex.attempts.forEach((a, i) => {
+      const st = statusOf(a);
+      if (st === 'correct' && !done) {
+        done = true;
+        xp += i === 0 ? 50 : 30;
+        const prev = ex.attempts[i - 1];
+        if (wasWrong && prev) xp += 10 * (3 - Math.min(3, prev.hintsShown || 0));
+      }
+      if (st === 'wrong') wasWrong = true;
+    });
+    return xp + 80 * (ex.redoCleared || 0);
+  }
+
+  function stats() {
+    const xs = store.exercises;
+    const xp = xs.reduce((sum, e) => sum + exerciseXp(e), 0);
+    const level = Math.floor((1 + Math.sqrt(1 + 8 * xp / 100)) / 2);
+    const base = 50 * level * (level - 1), next = 50 * level * (level + 1);
+    const firstTry = (e) => e.attempts[0] && statusOf(e.attempts[0]) === 'correct';
+    const solved = (e) => e.attempts.some((a) => statusOf(a) === 'correct');
+    const week = (k) => {
+      const hi = Date.now() - k * 7 * DAY, lo = hi - 7 * DAY;
+      const set = xs.filter((e) => e.created > lo && e.created <= hi);
+      const missed = set.flatMap((e) => e.attempts).filter((a) => a.diagnosis);
+      return {
+        solved: set.filter(solved).length,
+        acc: set.length ? Math.round(100 * set.filter(firstTry).length / set.length) : null,
+        hints: missed.length ? missed.reduce((sum, a) => sum + (a.hintsShown || 0), 0) / missed.length : null,
+        xp: set.reduce((sum, e) => sum + exerciseXp(e), 0),
+      };
+    };
+    const judged = xs.filter((e) => e.status !== 'open');
+    let streak = 0;
+    for (const e of judged) { if (firstTry(e)) streak++; else break; }
+    let best = 0, run = 0;
+    for (const e of judged) { if (firstTry(e)) { run++; best = Math.max(best, run); } else run = 0; }
+    return {
+      xp, level, rank: rankOf(level), into: xp - base, span: next - base, toNext: next - xp, streak, best,
+      now: week(0), prev: week(1), weeks: [5, 4, 3, 2, 1, 0].map(week),
+      total: xs.length, solved: xs.filter(solved).length,
+      lines: xs.reduce((sum, e) => sum + e.attempts.reduce((b, a) => Math.max(b, okLines(a)), 0), 0),
+      bounties: xs.reduce((sum, e) => sum + (e.redoCleared || 0), 0),
+    };
+  }
+
+  function guessVar(expr) {
+    const names = (Engine.normalise(expr || '').match(/[a-zA-Zθ]+/g) || []).filter((n) => n.length === 1 && !'eCD'.includes(n));
+    for (const p of ['x', 't', 'y', 'u', 's', 'r', 'θ']) if (names.includes(p)) return p;
+    return names[0] || 'x';
+  }
+
   // ------------------------------------------------------------------ router
   let view = { name: 'home' };
   const SVG = (d) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + d + '</svg>';
@@ -319,12 +385,20 @@ No formal definitions unless they help. No praise or filler. Put maths between s
     patterns: SVG('<path d="M5 20V11M12 20V4M19 20v-6"/>'),
     concepts: SVG('<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/>'),
     settings: SVG('<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>'),
+    progress: SVG('<path d="M5 20V11M12 20V4M19 20v-6"/>'),
+    keys: SVG('<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M8 14h8"/>'),
+    gear: SVG('<circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>'),
     camera: SVG('<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>'),
   };
   const icon = (n) => h('span', { innerHTML: ICONS[n], 'aria-hidden': 'true', style: 'display:grid' });
   const ART = '<svg viewBox="0 0 320 96" fill="none" stroke-linecap="round"><path d="M100 82L220 2" stroke="#1d2145" stroke-width="3.5"/><path d="M16 84C90 80 150 60 200 8" stroke="#5b4bff" stroke-width="7"/><circle cx="160.6" cy="41.3" r="9" fill="#fff" stroke="#1d2145" stroke-width="4"/><path d="M262 28v16M254 36h16M290 64v10M285 69h10" stroke="#1d2145" stroke-width="3.5"/><circle cx="44" cy="26" r="7" fill="#ff7a59"/><circle cx="302" cy="22" r="5" fill="#12996a"/></svg>';
-  const TABS = [['home', 'Practise'], ['patterns', 'Patterns'], ['concepts', 'Concepts'], ['settings', 'Settings']];
-  const FOCUS = new Set(['capture', 'working', 'confirm', 'result', 'redo', 'concept', 'category']);
+  const TABS = [['home', 'Play'], ['progress', 'Progress'], ['concepts', 'Concepts']];
+  const FOCUS = new Set(['capture', 'working', 'confirm', 'result', 'redo', 'concept', 'category', 'settings']);
+  const BADGE = (level) => '<svg viewBox="0 0 64 64"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#22e3ff"/><stop offset="1" stop-color="#7a5cff"/></linearGradient></defs>' +
+    '<path d="M32 3l25 14.5v29L32 61 7 46.5v-29z" fill="#0b1230" stroke="url(#bg)" stroke-width="4" stroke-linejoin="round"/>' +
+    '<path d="M32 11l18 10.5v21L32 53 14 42.5v-21z" fill="url(#bg)" opacity="0.22"/>' +
+    '<text x="32" y="41" text-anchor="middle" font-size="25" font-weight="800" font-family="system-ui" fill="#fff">' + level + '</text></svg>';
+  const RETICLE = '<svg viewBox="0 0 80 80" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><circle class="spin" cx="40" cy="40" r="30" stroke-dasharray="34 13"/><circle cx="40" cy="40" r="17" opacity="0.6"/><path d="M40 2v14M40 64v14M2 40h14M64 40h14"/><circle cx="40" cy="40" r="3.5" fill="currentColor" stroke="none"/></svg>';
 
   function go(v) { view = v; refresh(); window.scrollTo(0, 0); }
   function refresh() {
@@ -338,41 +412,74 @@ No formal definitions unless they help. No praise or filler. Put maths between s
   // ------------------------------------------------------------------ views
   const VIEWS = {};
 
+  function deltaEl(now, prev, opts) {
+    opts = opts || {};
+    if (now == null || prev == null) return h('div', { class: 'delta' }, 'No data last week');
+    const diff = now - prev;
+    if (Math.abs(diff) < 0.05) return h('div', { class: 'delta' }, 'Same as last week');
+    const good = opts.lowerBetter ? diff < 0 : diff > 0;
+    const shown = (opts.decimals ? Math.abs(diff).toFixed(1) : Math.abs(Math.round(diff))) + (opts.suffix || '');
+    return h('div', { class: 'delta ' + (good ? 'good' : 'bad') }, (diff > 0 ? '▲ +' : '▼ −') + shown + ' vs last week');
+  }
+  const tile = (label, value, extra) => h('div', { class: 'tile' }, h('div', { class: 'tile-label' }, label), h('div', { class: 'tile-value' }, value), extra);
+
+  function hud(st) {
+    return h('div', { class: 'hud' },
+      h('div', { class: 'badge', innerHTML: BADGE(st.level), role: 'img', 'aria-label': 'Level ' + st.level }),
+      h('div', { class: 'hud-main' },
+        h('div', { class: 'rank' }, st.rank, h('span', {}, ' · Level ' + st.level)),
+        h('div', { class: 'xpbar' }, h('i', { style: 'width:' + Math.max(3, Math.round(100 * st.into / st.span)) + '%' })),
+        h('div', { class: 'xpnote' }, st.xp + ' XP · ' + st.toNext + ' to level ' + (st.level + 1))));
+  }
+
   VIEWS.home = () => {
     const now = Date.now();
+    const st = stats();
     const due = store.exercises.filter((e) => e.redoAt && e.redoAt <= now);
     const later = store.exercises.filter((e) => e.redoAt && e.redoAt > now).length;
     const focus = topPattern(21);
-    const recent = store.exercises.slice(0, 8);
+    const recent = store.exercises.slice(0, 6);
+    const typed = () => go({ name: 'confirm', draft: { exId: null, problem: { text: '', expr: '', variable: 'x' }, steps: [], note: null, autoOpen: true } });
     return [
-      h('div', { class: 'hero' },
-        h('div', { class: 'art', innerHTML: ART }),
-        h('h1', {}, store.exercises.length ? 'Ready for another one?' : 'Let’s do some calculus'),
-        h('p', {}, 'Solve it on paper, take a photo, and see exactly where it went wrong.'),
-        h('button', { class: 'btn primary big', onclick: () => pickPhotos(() => go({ name: 'capture' })) }, icon('camera'), 'Take a photo'),
-        h('button', { class: 'btn quiet', onclick: () => go({ name: 'confirm', draft: { exId: null, problem: { text: '', expr: '', variable: 'x' }, steps: [], note: null } }) }, 'or type it in')),
-      !store.settings.key && h('div', { class: 'notice' }, 'To read photos, the app needs your DeepSeek API key. ',
-        h('a', { href: '#', onclick: (e) => { e.preventDefault(); go({ name: 'settings' }); } }, 'Add it in Settings.')),
-      !storageOk && h('div', { class: 'notice bad' }, 'Your history could not be saved on this device. Export a backup from Settings.'),
+      h('div', { class: 'toprow' }, hud(st),
+        h('button', { class: 'gear', 'aria-label': 'Settings', onclick: () => go({ name: 'settings' }) }, icon('gear'))),
+      !store.settings.key && h('div', { class: 'notice' }, 'Scanning needs your DeepSeek API key. ',
+        h('a', { href: '#', onclick: (e) => { e.preventDefault(); go({ name: 'settings' }); } }, 'Add it in settings.')),
+      !storageOk && h('div', { class: 'notice bad' }, 'Your history could not be saved on this device. Export a backup from settings.'),
 
-      due.length ? h('h2', {}, 'Due for another try') : null,
+      h('button', { class: 'scan', onclick: () => pickPhotos(() => go({ name: 'capture' })) },
+        h('span', { class: 'reticle', innerHTML: RETICLE, 'aria-hidden': 'true' }),
+        h('span', { class: 'scan-text' }, h('span', { class: 'scan-title' }, 'Scan my work'), h('span', { class: 'scan-sub' }, 'Photograph your solution and find the miss'))),
+      h('button', { class: 'btn', style: 'margin-top:10px', onclick: typed }, icon('keys'), 'Use the math keyboard'),
+
+      h('h2', {}, 'You vs last week'),
+      h('div', { class: 'grid' },
+        tile('Solved', st.now.solved, deltaEl(st.now.solved, st.prev.solved)),
+        tile('First-try accuracy', st.now.acc == null ? '—' : st.now.acc + '%', deltaEl(st.now.acc, st.prev.acc, { suffix: ' pts' })),
+        tile('Clean streak', st.streak, h('div', { class: 'delta' }, 'Your best: ' + st.best)),
+        tile('Hints per miss', st.now.hints == null ? '—' : st.now.hints.toFixed(1), deltaEl(st.now.hints, st.prev.hints, { lowerBetter: true, decimals: true }))),
+
+      !store.exercises.length ? h('h2', {}, 'How it works') : null,
+      !store.exercises.length ? h('div', { class: 'list' }, [['1', 'Solve an exercise on paper.'], ['2', 'Scan it. Every line is checked by calculation.'], ['3', 'Fix the miss with as few hints as you can to earn more XP.']].map(([n, text]) =>
+        h('div', { class: 'item' }, h('span', { class: 'num' }, n), h('div', { class: 'grow' }, text)))) : null,
+
+      due.length ? h('h2', {}, 'Bounties: beat your past self') : null,
       due.length ? h('div', { class: 'list' }, due.map((ex) =>
         h('button', { class: 'item', onclick: () => go({ name: 'redo', exId: ex.id }) },
-          h('div', { class: 'grow' }, problemEl(ex.problem)), h('span', { class: 'meta' }, 'Redo ›')))) : null,
-      later ? h('p', { class: 'muted small', style: 'margin-top:10px' }, later + (later === 1 ? ' exercise comes' : ' exercises come') + ' back in the next few days.') : null,
+          h('div', { class: 'grow' }, problemEl(ex.problem)), h('span', { class: 'pill gold' }, '+80 XP')))) : null,
+      later ? h('p', { class: 'muted small', style: 'margin-top:10px' }, later + (later === 1 ? ' bounty unlocks' : ' bounties unlock') + ' in the next few days.') : null,
 
-      focus ? h('h2', {}, 'What to work on') : null,
-      focus ? h('div', { class: 'card' },
-        h('div', {}, h('strong', {}, CATS[focus.id].name), ' — ' + focus.n + ' times in the last three weeks.'),
-        h('p', { class: 'muted', style: 'margin:8px 0 0' }, CATS[focus.id].advice)) : null,
+      focus ? h('h2', {}, 'Your nemesis') : null,
+      focus ? h('button', { class: 'card nemesis', onclick: () => go({ name: 'category', id: focus.id }) },
+        h('div', { class: 'nemesis-name' }, CATS[focus.id].name), h('div', { class: 'muted' }, 'Hit you ' + focus.n + ' times in the last three weeks. ' + CATS[focus.id].advice)) : null,
 
-      recent.length ? h('h2', {}, 'Recent') : null,
+      recent.length ? h('h2', {}, 'Mission log') : null,
       recent.length ? h('div', { class: 'list' }, recent.map(exerciseItem)) : null,
     ];
   };
 
   function exerciseItem(ex) {
-    const label = { correct: 'Correct', wrong: 'Check line ' + ((lastAttempt(ex).firstWrong | 0) + 1), open: 'Unfinished' }[ex.status] || '';
+    const label = { correct: 'Cleared', wrong: 'Miss · line ' + ((lastAttempt(ex).firstWrong | 0) + 1), open: 'Open' }[ex.status] || '';
     return h('button', { class: 'item', onclick: () => go({ name: 'result', exId: ex.id }) },
       h('div', { class: 'grow' }, problemEl(ex.problem), h('div', { class: 'muted small' }, fmtDate(ex.created))),
       h('span', { class: 'pill ' + ex.status }, label));
@@ -449,10 +556,11 @@ No formal definitions unless they help. No praise or filler. Put maths between s
   // ---- confirm
   VIEWS.confirm = (v) => {
     const d = v.draft, variable = d.problem.variable || 'x';
+    if (d.autoOpen) { d.autoOpen = false; setTimeout(() => editProblem(), 0); }
     const editProblem = () => editor({
-      title: 'Problem', expr: d.problem.expr, variable, showVariable: true,
-      help: 'Write D(…) for a derivative and lim(f, a) for a limit. Example: D(x^2*sin(x))',
-      onSave: (expr, opts) => { d.problem.expr = expr; d.problem.variable = opts.variable || 'x'; refresh(); },
+      title: 'The problem', expr: d.problem.expr, variable, isProblem: true,
+      help: 'Start with d/dx, ∫ or lim, then type what goes inside.',
+      onSave: (expr) => { d.problem.expr = expr; d.problem.variable = guessVar(expr); refresh(); },
     });
     const editStep = (i) => editor({
       title: 'Line ' + (i + 1), expr: d.steps[i].expr, variable, role: d.steps[i].role,
@@ -484,32 +592,59 @@ No formal definitions unless they help. No praise or filler. Put maths between s
     ];
   };
 
+  // label, text to insert ("|" marks where the cursor lands), style
+  const PAD = [
+    ['d/dx', 'D(|)', 'fn'], ['∫', 'int(|)', 'fn'], ['lim', 'lim(|, 0)', 'fn'], ['√', 'sqrt(|)', 'fn'], ['xⁿ', '^', 'fn'], ['⌫', '<bs>', 'act'],
+    ['sin', 'sin(|)', 'fn'], ['cos', 'cos(|)', 'fn'], ['tan', 'tan(|)', 'fn'], ['ln', 'ln(|)', 'fn'], ['log', 'log10(|)', 'fn'], ['e', 'e', 'fn'],
+    ['7', '7'], ['8', '8'], ['9', '9'], ['÷', '/', 'op'], ['(', '(', 'op'], [')', ')', 'op'],
+    ['4', '4'], ['5', '5'], ['6', '6'], ['×', '*', 'op'], ['x', 'x', 'var'], ['y', 'y', 'var'],
+    ['1', '1'], ['2', '2'], ['3', '3'], ['−', '-', 'op'], ['π', 'pi', 'var'], ['∞', 'Infinity', 'var'],
+    ['0', '0'], ['.', '.'], [',', ', ', 'op'], ['+', '+', 'op'], ['=', ' = ', 'op'], ['abc', '<abc>', 'act'],
+  ];
+  const TOKEN = /(Infinity|log10\(|sqrt\(|sin\(|cos\(|tan\(|int\(|lim\(|ln\(|D\(|pi| = |, )$/;
+
   function editor(o) {
     const preview = h('div', { class: 'preview' });
-    const input = h('input', { type: 'text', class: 'mono', value: o.expr || '', autocapitalize: 'off', autocorrect: 'off', spellcheck: false, 'aria-label': 'Expression' });
-    const varInput = o.showVariable ? h('input', { type: 'text', class: 'mono', value: o.variable, maxLength: 1, autocapitalize: 'off', 'aria-label': 'Variable' }) : null;
+    const input = h('input', { type: 'text', class: 'mono', value: o.expr || '', inputMode: 'none', autocapitalize: 'off', autocorrect: 'off', spellcheck: false, 'aria-label': 'Expression' });
     const aside = o.role ? h('input', { type: 'checkbox', checked: o.role === 'aside' }) : null;
     const show = () => {
       preview.replaceChildren();
-      if (!input.value.trim()) { preview.append(h('span', { class: 'muted' }, 'Preview')); return; }
-      try { preview.append(mathEl(Engine.tex(input.value, (varInput && varInput.value) || o.variable))); }
-      catch (e) { preview.append(h('span', { class: 'muted' }, 'Not readable yet')); }
+      if (!input.value.trim()) { preview.append(h('span', { class: 'muted' }, 'Your maths appears here')); return; }
+      try { preview.append(mathEl(Engine.tex(input.value, o.isProblem ? guessVar(input.value) : o.variable))); }
+      catch (e) { preview.append(h('span', { class: 'muted' }, 'Keep typing…')); }
     };
+    const caret = (p) => { input.focus(); try { input.setSelectionRange(p, p); } catch (e) { /* not focusable yet */ } };
+    const mathKeys = h('button', { class: 'btn quiet', hidden: true, onclick: () => { input.inputMode = 'none'; pad.hidden = false; mathKeys.hidden = true; input.blur(); caret(input.value.length); } }, 'Back to the math keys');
+    const press = (ins) => {
+      const v = input.value;
+      let a = input.selectionStart == null ? v.length : input.selectionStart;
+      const b = input.selectionEnd == null ? a : input.selectionEnd;
+      if (ins === '<abc>') { input.inputMode = 'text'; pad.hidden = true; mathKeys.hidden = false; input.blur(); caret(a); return; }
+      if (ins === '<bs>') {
+        if (a === b) { const m = v.slice(0, a).match(TOKEN); a -= m ? m[0].length : Math.min(1, a); }
+        input.value = v.slice(0, a) + v.slice(b); caret(a);
+      } else {
+        const at = ins.indexOf('|'), text = ins.replace('|', '');
+        input.value = v.slice(0, a) + text + v.slice(b);
+        caret(a + (at < 0 ? text.length : at));
+      }
+      show();
+    };
+    const pad = h('div', { class: 'pad' }, PAD.map(([label, ins, kind]) =>
+      h('button', { class: 'key ' + (kind || 'num'), type: 'button', onpointerdown: (e) => e.preventDefault(), onclick: () => press(ins) }, label)));
     input.addEventListener('input', show); show();
     const close = () => sheetRoot.replaceChildren();
-    const done = () => { close(); o.onSave(input.value.trim(), { role: aside && aside.checked ? 'aside' : 'main', variable: varInput && varInput.value.trim() }); };
+    const done = () => { close(); o.onSave(input.value.trim(), { role: aside && aside.checked ? 'aside' : 'main' }); };
     sheetRoot.replaceChildren(h('div', { class: 'scrim', onclick: (e) => { if (e.target.classList.contains('scrim')) close(); } },
       h('div', { class: 'sheet', role: 'dialog', 'aria-label': o.title },
-        h('h3', {}, o.title),
+        h('div', { class: 'sheet-head' }, h('h3', {}, o.title), o.onDelete ? h('button', { class: 'linkbtn', onclick: () => { close(); o.onDelete(); } }, 'Delete') : null),
         preview, input,
-        h('p', { class: 'muted small', style: 'margin:8px 0 0' }, o.help || 'Type it as you would on a calculator: 2x*cos(x^2), sqrt(x+1), e^(2x), ln(x). Side work can be an equation: D(x^2+1) = 2x'),
-        varInput ? h('label', { class: 'field' }, h('span', {}, 'Variable'), varInput) : null,
-        aside ? h('label', { class: 'check' }, aside, 'Side work (not a full line of the answer)') : null,
-        h('div', { class: 'row', style: 'margin-top:14px' },
-          o.onDelete ? h('button', { class: 'btn', onclick: () => { close(); o.onDelete(); } }, 'Delete') : null,
-          h('button', { class: 'btn primary', onclick: done }, 'Done')))));
+        h('p', { class: 'muted small', style: 'margin:6px 0 8px' }, o.help || 'Tap inside the box to move the cursor.'),
+        mathKeys, pad,
+        aside ? h('label', { class: 'check' }, aside, 'This line is side work') : null,
+        h('button', { class: 'btn primary', style: 'margin-top:10px', onclick: done }, 'Done'))));
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') done(); });
-    input.focus();
+    caret(input.value.length);
   }
 
   // ---- result
@@ -521,15 +656,23 @@ No formal definitions unless they help. No praise or filler. Put maths between s
     const k = at.firstWrong;
     const okCount = at.results.filter((r) => r === 'ok').length;
     const unv = at.results.filter((r) => r === 'unverified').length;
-    const verdict = ex.status === 'wrong' ? 'Almost! Take another look at line ' + (k + 1) + '.'
-      : ex.status === 'correct' ? 'Every line checks out. Nice work!'
-      : okCount ? 'Correct so far. Keep going!' : 'Nothing here could be checked.';
+    const verdict = ex.status === 'wrong' ? 'Miss on line ' + (k + 1)
+      : ex.status === 'correct' ? 'All lines hit'
+      : okCount ? 'On target so far' : 'Nothing here could be checked.';
     const sub = ex.status === 'wrong' ? (k === 0 ? 'It does not follow from the problem.' : (k === 1 ? 'Line 1 is fine' : 'Lines 1–' + k + ' are fine') + '. Look at how you got from line ' + k + ' to line ' + (k + 1) + '.')
       : okCount + (okCount === 1 ? ' line' : ' lines') + ' verified by calculation' + (unv ? ', ' + unv + ' could not be checked.' : '.');
 
     const out = [
       topbar('Done', () => go({ name: 'home' }), h('button', { onclick: () => { if (confirm('Delete this exercise from your history?')) { store.exercises = store.exercises.filter((e) => e !== ex); save(); go({ name: 'home' }); } } }, 'Delete')),
-      h('div', { class: 'banner ' + ex.status }, h('div', { class: 'verdict' }, verdict), h('p', {}, sub)),
+      h('div', { class: 'banner ' + ex.status }, h('div', { class: 'verdict' }, verdict), h('p', {}, sub),
+        (() => {
+          let combo = 0, run = 0;
+          at.results.forEach((r) => { run = r === 'ok' ? run + 1 : 0; combo = Math.max(combo, run); });
+          const fresh = v.fresh || {};
+          const rewards = [at.gain ? '+' + at.gain + ' XP' : null, combo >= 2 ? 'Combo ×' + combo : null,
+            fresh.levelUp ? 'Level up! ' + rankOf(fresh.levelUp) + ' · ' + fresh.levelUp : null, fresh.newBest > 1 ? 'New best streak: ' + fresh.newBest : null].filter(Boolean);
+          return rewards.length ? h('div', { class: 'rewards' }, rewards.map((r, i) => h('span', { class: 'reward', style: 'animation-delay:' + (i * 0.14) + 's' }, r))) : null;
+        })()),
       h('div', { class: 'steps' },
         h('div', { class: 'step problem' }, h('span', { class: 'n' }, ''), h('div', { class: 'body' }, problemEl(ex.problem), h('div', { class: 'tag' }, 'Problem'))),
         at.steps.map((s, i) => h('div', { class: 'step' + (i === k ? ' first-wrong' : '') + (k >= 0 && i > k ? ' after' : '') },
@@ -545,7 +688,7 @@ No formal definitions unless they help. No praise or filler. Put maths between s
 
     out.push(h('div', { class: 'stack', style: 'margin-top:22px' },
       ex.status !== 'correct' ? h('button', { class: 'btn primary', onclick: () => go({ name: 'capture', exId: ex.id }) }, ex.status === 'wrong' ? 'Photograph my corrected work' : 'Photograph the rest') : null,
-      ex.status === 'wrong' ? h('p', { class: 'muted small', style: 'text-align:center' }, 'This one will come back in three days so you can do it cold.') : null));
+      ex.status === 'wrong' ? h('p', { class: 'muted small', style: 'text-align:center' }, 'Fix it now for bonus XP: the fewer hints you open, the bigger the bonus. It also returns as a bounty in three days.') : null));
     return out;
   };
 
@@ -609,34 +752,46 @@ No formal definitions unless they help. No praise or filler. Put maths between s
     return top && top[1] >= 2 ? { id: top[0], n: top[1] } : null;
   }
 
-  VIEWS.patterns = () => {
+  VIEWS.progress = () => {
+    const st = stats();
     const all = mistakes(0), recent = mistakes(30);
     const counts = {};
-    all.forEach((m) => { (counts[m.id] = counts[m.id] || { all: 0, recent: 0, last: 0 }).all++; counts[m.id].last = Math.max(counts[m.id].last, m.a.at); });
+    all.forEach((m) => { (counts[m.id] = counts[m.id] || { all: 0, recent: 0 }).all++; });
     recent.forEach((m) => { counts[m.id].recent++; });
     const rows = Object.entries(counts).sort((a, b) => b[1].recent - a[1].recent || b[1].all - a[1].all);
     const max = Math.max(1, ...rows.map((r) => r[1].all));
-    const total = store.exercises.length;
-    const clean = store.exercises.filter((e) => e.attempts[0] && e.attempts[0].firstWrong < 0).length;
-    const depth = all.length ? (all.reduce((s, m) => s + (m.a.hintsShown || 0), 0) / all.length) : 0;
-    if (!total) return [h('h1', {}, 'Patterns'), h('p', { class: 'lede' }, 'Once you have checked a few exercises, the kinds of mistakes you make will be counted here.')];
+    const top = Math.max(1, ...st.weeks.map((w) => w.xp));
+    const depth = all.length ? (all.reduce((sum, m) => sum + (m.a.hintsShown || 0), 0) / all.length) : null;
+    const nextRankLevel = (Math.floor((st.level - 1) / 2) + 1) * 2 + 1;
     return [
-      h('h1', {}, 'Patterns'),
-      h('p', { class: 'lede' }, total + (total === 1 ? ' exercise' : ' exercises') + ' checked. ' + clean + ' right on the first attempt.'),
-      rows.length ? h('h2', {}, 'Mistakes by kind') : h('p', { class: 'muted' }, 'No mistakes recorded yet.'),
+      h('div', { class: 'card levelcard' }, hud(st),
+        h('p', { class: 'muted small', style: 'margin:12px 0 0' }, st.rank === RANKS[RANKS.length - 1] ? 'Top rank reached.' : 'Next rank: ' + rankOf(nextRankLevel) + ' at level ' + nextRankLevel + '.')),
+      h('h2', {}, 'XP per week'),
+      h('div', { class: 'card chart' }, st.weeks.map((w, i) => h('div', { class: 'col' },
+        h('div', { class: 'val' }, w.xp || ''),
+        h('div', { class: 'colbar' + (i === 5 ? ' now' : ''), style: 'height:' + Math.max(3, Math.round(100 * w.xp / top)) + '%' }),
+        h('div', { class: 'lab' }, i === 5 ? 'Now' : (5 - i) + 'w ago')))),
+      h('h2', {}, 'Personal records'),
+      h('div', { class: 'grid' },
+        tile('Best clean streak', st.best, h('div', { class: 'delta' }, 'Current: ' + st.streak)),
+        tile('Exercises cleared', st.solved, h('div', { class: 'delta' }, 'of ' + st.total + ' scanned')),
+        tile('Lines verified', st.lines, h('div', { class: 'delta' }, '10 XP each')),
+        tile('Bounties claimed', st.bounties, h('div', { class: 'delta' }, '80 XP each'))),
+      h('h2', {}, 'Your nemeses'),
       rows.length ? h('div', { class: 'list' }, rows.map(([id, c]) =>
         h('button', { class: 'bar-row', onclick: () => go({ name: 'category', id }) },
-          h('div', { class: 'head' }, h('span', {}, CATS[id].name), h('span', { class: 'muted small' }, c.all + ' total · ' + c.recent + ' this month')),
-          h('div', { class: 'bar' }, h('i', { style: 'width:' + Math.round(100 * c.all / max) + '%' }))))) : null,
-      all.length ? h('h2', {}, 'Hints needed') : null,
-      all.length ? h('div', { class: 'card' }, 'On average you opened ' + depth.toFixed(1) + ' of 3 extra hints before fixing a mistake. Lower means you are finding errors yourself.') : null,
+          h('div', { class: 'head' }, h('span', {}, CATS[id].name), h('span', { class: 'muted small' }, c.all + ' hits · ' + c.recent + ' this month')),
+          h('div', { class: 'bar' }, h('i', { style: 'width:' + Math.round(100 * c.all / max) + '%' })))))
+        : h('div', { class: 'card muted' }, 'No mistakes recorded yet. The kinds of mistakes you make will be tracked here so you can hunt them down.'),
+      depth != null ? h('h2', {}, 'Hints per miss') : null,
+      depth != null ? h('div', { class: 'card' }, h('span', { class: 'tile-value' }, depth.toFixed(1)), h('span', { class: 'muted' }, ' of 3 on average. Lower means you are finding your own errors.')) : null,
     ];
   };
 
   VIEWS.category = (v) => {
     const list = mistakes(0).filter((m) => m.id === v.id).sort((a, b) => b.a.at - a.a.at);
     return [
-      topbar('Patterns', () => go({ name: 'patterns' })),
+      topbar('Progress', () => go({ name: 'progress' })),
       h('h1', {}, CATS[v.id].name),
       h('p', { class: 'lede' }, CATS[v.id].advice),
       h('div', { class: 'list' }, list.map((m) => h('button', { class: 'item', onclick: () => go({ name: 'result', exId: m.ex.id }) },
@@ -711,6 +866,7 @@ No formal definitions unless they help. No praise or filler. Put maths between s
       } catch (err) { go({ name: 'settings', status: 'That file is not a Tangent backup.' }); }
     } });
     return [
+      topbar('Back', () => go({ name: 'home' })),
       h('h1', {}, 'Settings'),
       h('h2', {}, 'DeepSeek'),
       h('label', { class: 'field' }, h('span', {}, 'API key (from platform.deepseek.com, kept only on this device)'), keyInput),

@@ -8,6 +8,8 @@
  *   D(f)            derivative of f with respect to the problem variable
  *   lim(f, a)       limit of f as the variable -> a   (a may be Infinity)
  *   lim(f, a, 1)    right-hand limit;  lim(f, a, -1)  left-hand limit
+ *   int(f)          indefinite integral (compared up to a constant)
+ *   int(f, a, b)    definite integral from a to b
  */
 (function (root) {
   'use strict';
@@ -19,7 +21,8 @@
   const DNE = Symbol('limit does not exist');
 
   // Evaluation context shared with the D and lim operators.
-  let ctx = { variable: 'x', scope: {}, err: 0 };
+  let ctx = { variable: 'x', scope: {}, err: 0, center: 0 };
+  const compiled = new WeakMap();
 
   function num(v) {
     if (typeof v === 'number') return v;
@@ -32,7 +35,9 @@
     const saved = ctx.scope;
     ctx.scope = scope;
     try {
-      const v = node.evaluate(Object.assign({}, scope));
+      let code = compiled.get(node);
+      if (!code) { code = node.compile(); compiled.set(node, code); }
+      const v = code.evaluate(Object.assign({}, scope));
       return v === DNE ? DNE : num(v);
     } catch (e) {
       return NaN;
@@ -120,7 +125,34 @@
   }
   lim.rawArgs = true;
 
-  m.import({ D, lim }, { override: true });
+  // ---- int: numeric integration (Simpson). An indefinite integral is measured from the
+  // current sample point, which is enough because such lines are compared by their derivatives.
+  function quad(f, a, b, n) {
+    if (a === b) return 0;
+    const step = (b - a) / n;
+    let sum = evalWith(f, a) + evalWith(f, b);
+    for (let i = 1; i < n; i++) sum += evalWith(f, a + i * step) * (i % 2 ? 4 : 2);
+    return sum * step / 3;
+  }
+  function integ(args) {
+    const f = args[0];
+    if (args.length >= 3) {
+      const a = num(args[1].evaluate(Object.assign({}, ctx.scope)));
+      const b = num(args[2].evaluate(Object.assign({}, ctx.scope)));
+      if (!Number.isFinite(a) || !Number.isFinite(b)) return NaN;
+      return quad(f, a, b, 400);
+    }
+    return quad(f, ctx.center, ctx.scope[ctx.variable], 16);
+  }
+  integ.rawArgs = true;
+
+  m.import({ D, lim, int: integ }, { override: true });
+
+  function hasIndefinite(node) {
+    let found = false;
+    node.traverse((n) => { if (n.type === 'FunctionNode' && n.fn && n.fn.name === 'int' && n.args.length === 1) found = true; });
+    return found;
+  }
 
   function same(a, b, extra) {
     if (a === DNE || b === DNE) return a === b;
@@ -194,15 +226,20 @@
   }
 
   // Evaluate each node at every sample point -> array of {v, err}
-  function table(nodes, variable, params) {
+  // With byDerivative, each node is replaced by its numeric derivative, so that
+  // antiderivatives which differ by a constant count as equal.
+  function table(nodes, variable, params, byDerivative) {
     return SAMPLES.map((x) => {
       const scope = {};
       params.forEach((p, i) => { scope[p] = PARAM_VALUES[i % PARAM_VALUES.length]; });
       scope[variable] = x;
       return nodes.map((n) => {
-        ctx = { variable, scope, err: 0 };
-        const v = evalNode(n, scope);
-        return { v, err: ctx.err };
+        ctx = { variable, scope, err: 0, center: x };
+        if (!byDerivative) return { v: evalNode(n, scope), err: ctx.err };
+        const at = (t) => { const s2 = Object.assign({}, scope); s2[variable] = t; const v = evalNode(n, s2); return v === DNE ? NaN : v; };
+        const h = 1e-3 * Math.max(1, Math.abs(x));
+        const cd = (k) => (at(x + k) - at(x - k)) / (2 * k);
+        return { v: (4 * cd(h / 2) - cd(h)) / 3, err: 1e-7 };
       });
     });
   }
@@ -213,7 +250,7 @@
   function compare(refNode, nodes, variable) {
     const all = [refNode, ...nodes];
     const params = freeSymbols(all, variable);
-    const rows = table(all, variable, params);
+    const rows = table(all, variable, params, all.some(hasIndefinite));
     let valid = 0;
     for (const row of rows) {
       if (!row.every(usable)) continue;
@@ -266,6 +303,12 @@
         let sideTex = '';
         if (rest[1]) sideTex = /-/.test(rest[1].toString()) ? '^{-}' : '^{+}';
         return '\\lim_{' + v + '\\to ' + rest[0].toTex(options) + sideTex + '}\\left(' + node.args[0].toTex(options) + '\\right)';
+      }
+      if (node.type === 'FunctionNode' && node.fn && node.fn.name === 'int' && node.args.length >= 1) {
+        const body = node.args[0].toTex(options);
+        const wrap = node.args[0].type === 'OperatorNode' && '+-'.includes(node.args[0].op) ? '\\left(' + body + '\\right)' : body;
+        const bounds = node.args.length >= 3 ? '_{' + node.args[1].toTex(options) + '}^{' + node.args[2].toTex(options) + '}' : '';
+        return '\\int' + bounds + ' ' + wrap + '\\,d' + variable;
       }
       if (node.type === 'SymbolNode' && node.name === 'Infinity') return '\\infty';
       return undefined;
