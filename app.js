@@ -17,7 +17,7 @@
     limit_law: { name: 'Limit law misapplied', advice: 'A limit law only applies when each separate limit exists. Check that before splitting.' },
     identity: { name: 'Trig, exponential or log identity', advice: 'Keep a short list of the identities you actually use and test each one with a number when unsure.' },
     copying: { name: 'Copying error', advice: 'A term changed between lines without a reason. Tick each term off as you carry it down.' },
-    concept: { name: 'Conceptual misunderstanding', advice: 'This is about what the idea means, not the mechanics. Open Concepts and work through it.' },
+    concept: { name: 'Conceptual misunderstanding', advice: 'This is about what the idea means, not the mechanics. Sketch the function and look at what it does.' },
     integration: { name: 'Integration technique', advice: 'Differentiate your answer to test it. If you do not get the integrand back, the technique was applied wrongly.' },
     other: { name: 'Other', advice: '' },
   };
@@ -28,6 +28,275 @@
     const raw = localStorage.getItem(KEY);
     if (raw) store = Object.assign(blank(), JSON.parse(raw));
   } catch (e) { /* start fresh */ }
+  if (!store.settings.lang) store.settings.lang = (navigator.language || 'en').toLowerCase().startsWith('sv') ? 'sv' : 'en';
+  if (!store.settings.theme) store.settings.theme = 'dark';
+  if (!store.sketches) store.sketches = [];
+  function applyTheme() {
+    const light = store.settings.theme === 'light';
+    document.documentElement.dataset.theme = light ? 'light' : 'dark';
+    document.documentElement.lang = store.settings.lang;
+    document.querySelectorAll('meta[name=theme-color]').forEach((m) => { m.content = light ? '#eef3ff' : '#060a18'; });
+  }
+  applyTheme();
+
+  // Swedish. Keys are the English strings; "#" stands for any number.
+  const SV = {
+    "Play": "Spela",
+    "Progress": "Framsteg",
+    "Sketch": "Skissa",
+    "Settings": "Inställningar",
+    "English": "English",
+    "Svenska": "Svenska",
+    "DeepSeek": "DeepSeek",
+    "Back": "Tillbaka",
+    "Cancel": "Avbryt",
+    "Done": "Klar",
+    "Delete": "Ta bort",
+    "Scanning needs your DeepSeek API key.": "Skanning kräver din API-nyckel från DeepSeek.",
+    "Add it in settings.": "Lägg till den i inställningarna.",
+    "Your history could not be saved on this device. Export a backup from settings.": "Din historik kunde inte sparas på den här enheten. Exportera en säkerhetskopia i inställningarna.",
+    "Scan my work": "Skanna min lösning",
+    "Photograph your solution and find the miss": "Fotografera din lösning och hitta felet",
+    "Use the math keyboard": "Använd mattetangentbordet",
+    "You vs last week": "Du mot förra veckan",
+    "Solved": "Lösta",
+    "First-try accuracy": "Rätt på första försöket",
+    "Clean streak": "Felfri svit",
+    "Hints per miss": "Ledtrådar per fel",
+    "No data last week": "Inga data från förra veckan",
+    "Same as last week": "Samma som förra veckan",
+    "▲ +# vs last week": "▲ +# mot förra veckan",
+    "▼ −# vs last week": "▼ −# mot förra veckan",
+    "▲ +# pts vs last week": "▲ +# procentenheter mot förra veckan",
+    "▼ −# pts vs last week": "▼ −# procentenheter mot förra veckan",
+    "Your best: #": "Ditt bästa: #",
+    "How it works": "Så funkar det",
+    "Solve an exercise on paper.": "Lös en uppgift på papper.",
+    "Scan it. Every line is checked by calculation.": "Skanna den. Varje rad kontrolleras genom beräkning.",
+    "Fix the miss with as few hints as you can to earn more XP.": "Rätta felet med så få ledtrådar som möjligt för att få mer XP.",
+    "Bounties: beat your past self": "Revanscher: slå ditt gamla jag",
+    "# bounty unlocks in the next few days.": "# revansch låses upp inom några dagar.",
+    "# bounties unlock in the next few days.": "# revanscher låses upp inom några dagar.",
+    "Your nemesis": "Din ärkefiende",
+    "Hit you # times in the last three weeks.": "Har träffat dig # gånger de senaste tre veckorna.",
+    "Mission log": "Uppdragslogg",
+    "Cleared": "Klarad",
+    "Miss": "Miss",
+    "line #": "rad #",
+    "Open": "Öppen",
+    "Today": "Idag",
+    "Yesterday": "Igår",
+    "# days ago": "# dagar sedan",
+    "Level #": "Nivå #",
+    "· Level #": "· Nivå #",
+    "# to level #": "# till nivå #",
+    "Cadet": "Kadett",
+    "Rookie": "Rekryt",
+    "Operator": "Operatör",
+    "Specialist": "Specialist",
+    "Sharpshooter": "Prickskytt",
+    "Ace": "Ess",
+    "Elite": "Elit",
+    "Commander": "Befälhavare",
+    "Legend": "Legend",
+    "Try this one again": "Försök med den här igen",
+    "You made a mistake here before. Solve it from scratch on paper without looking at your old work.": "Du gjorde ett fel här förut. Lös uppgiften från början på papper utan att titta på din gamla lösning.",
+    "Photograph my new solution": "Fotografera min nya lösning",
+    "Remove from the redo list": "Ta bort den här revanschen",
+    "New attempt": "Nytt försök",
+    "Looks good?": "Ser det bra ut?",
+    "Check my work": "Kontrollera min lösning",
+    "Hold the phone straight above the page, in good light.": "Håll telefonen rakt ovanför sidan, i bra ljus.",
+    "Problem (leave empty if it is in the photo)": "Uppgift (lämna tomt om den finns på bilden)",
+    "e.g. differentiate x² sin x": "t.ex. derivera x² sin x",
+    "Add another page": "Lägg till en sida",
+    "Take a photo": "Ta ett foto",
+    "Check it": "Kontrollera",
+    "Type the lines instead": "Skriv in raderna istället",
+    "Photos are sent to DeepSeek to be read and are not kept in the app.": "Bilderna skickas till DeepSeek för att läsas av och sparas inte i appen.",
+    "Reading your handwriting…": "Läser din handstil…",
+    "Something went wrong while reading the photo.": "Något gick fel när bilden lästes av.",
+    "Page #": "Sida #",
+    "Remove page #": "Ta bort sida #",
+    "Is this what you wrote?": "Är det här vad du skrev?",
+    "Tap any line to correct it. The check is only as good as this transcription.": "Tryck på en rad för att rätta den. Kontrollen blir bara så bra som den här avläsningen.",
+    "Unsure about:": "Osäker på:",
+    "Problem": "Uppgift",
+    "Tap to enter the problem": "Tryck för att skriva in uppgiften",
+    "Problem — not in a form I can check. Tap to enter it.": "Uppgiften är inte i en form som kan kontrolleras. Tryck för att skriva in den.",
+    "Side work": "Sidoräkning",
+    "Add a line": "Lägg till en rad",
+    "# line is not in a form that can be checked. Tap to fix, or continue and it will be skipped.": "# rad är inte i en form som kan kontrolleras. Tryck för att rätta, eller fortsätt så hoppas den över.",
+    "# lines are not in a form that can be checked. Tap to fix, or continue and it will be skipped.": "# rader är inte i en form som kan kontrolleras. Tryck för att rätta, eller fortsätt så hoppas de över.",
+    "The problem": "Uppgiften",
+    "Line #": "Rad #",
+    "New line": "Ny rad",
+    "Function": "Funktion",
+    "Start with d/dx, ∫ or lim, then type what goes inside.": "Börja med d/dx, ∫ eller lim och skriv sedan det som ska stå inuti.",
+    "Your maths appears here": "Din matematik visas här",
+    "Keep typing…": "Fortsätt skriva…",
+    "Back to the math keys": "Tillbaka till mattetangenterna",
+    "Tap inside the box to move the cursor.": "Tryck i rutan för att flytta markören.",
+    "This line is side work": "Den här raden är en sidoräkning",
+    "Expression": "Uttryck",
+    "Miss on line #": "Miss på rad #",
+    "All lines hit": "Alla rader rätt",
+    "On target so far": "Rätt hittills",
+    "Nothing here could be checked.": "Inget här kunde kontrolleras.",
+    "It does not follow from the problem.": "Den följer inte av uppgiften.",
+    "Line # is fine. Look at how you got from line # to line #.": "Rad # stämmer. Titta på hur du gick från rad # till rad #.",
+    "Lines #–# are fine. Look at how you got from line # to line #.": "Rad #–# stämmer. Titta på hur du gick från rad # till rad #.",
+    "# line verified by calculation.": "# rad verifierad genom beräkning.",
+    "# lines verified by calculation.": "# rader verifierade genom beräkning.",
+    "# line verified by calculation, # could not be checked.": "# rad verifierad genom beräkning, # kunde inte kontrolleras.",
+    "# lines verified by calculation, # could not be checked.": "# rader verifierade genom beräkning, # kunde inte kontrolleras.",
+    "Combo ×#": "Kombo ×#",
+    "Level up!": "Ny nivå!",
+    "New best streak: #": "Ny bästa svit: #",
+    "Delete this exercise from your history?": "Ta bort den här uppgiften från din historik?",
+    "Photograph my corrected work": "Fotografera min rättade lösning",
+    "Photograph the rest": "Fotografera resten",
+    "Fix it now for bonus XP: the fewer hints you open, the bigger the bonus. It also returns as a bounty in three days.": "Rätta det nu för bonus-XP: ju färre ledtrådar du öppnar, desto större bonus. Uppgiften kommer också tillbaka som en revansch om tre dagar.",
+    "ok": "rätt",
+    "wrong": "fel",
+    "unverified": "inte kontrollerad",
+    "Working out what happened on that line…": "Tar reda på vad som hände på den raden…",
+    "No explanation yet.": "Ingen förklaring ännu.",
+    "Ask for an explanation": "Be om en förklaring",
+    "Look here": "Titta här",
+    "The idea": "Idén",
+    "What happened": "Vad som hände",
+    "What it means": "Vad det betyder",
+    "Corrected line": "Rättad rad",
+    "Verified by calculation.": "Verifierad genom beräkning.",
+    "The AI’s correction did not pass the check, so it is not shown. Use the hints above.": "AI:ns rättning klarade inte kontrollen, så den visas inte. Använd ledtrådarna ovan.",
+    "Another hint": "En ledtråd till",
+    "Show what went wrong": "Visa vad som gick fel",
+    "Show the corrected line": "Visa den rättade raden",
+    "Try to fix it on paper before asking for more.": "Försök rätta det på papper innan du ber om mer.",
+    "Thinking about your next step…": "Funderar på ditt nästa steg…",
+    "I’m stuck — give me a nudge": "Jag har kört fast, ge mig en knuff",
+    "Notice": "Lägg märke till",
+    "Next line": "Nästa rad",
+    "The AI’s suggested line did not pass the check, so it is not shown.": "AI:ns föreslagna rad klarade inte kontrollen, så den visas inte.",
+    "Show the next line": "Visa nästa rad",
+    "Something went wrong while asking for an explanation.": "Något gick fel när förklaringen skulle hämtas.",
+    "Something went wrong while asking for a hint.": "Något gick fel när ledtråden skulle hämtas.",
+    "No expression to check on this line.": "Inget uttryck att kontrollera på den här raden.",
+    "This line could not be read as an expression.": "Raden kunde inte läsas som ett uttryck.",
+    "Side work without an equation to test.": "Sidoräkning utan en ekvation att testa.",
+    "A definition, not a calculation.": "En definition, inte en beräkning.",
+    "The problem itself could not be read as an expression.": "Själva uppgiften kunde inte läsas som ett uttryck.",
+    "This kind of problem cannot be checked automatically yet.": "Den här typen av uppgift kan inte kontrolleras automatiskt ännu.",
+    "Could not be evaluated reliably at enough test points.": "Kunde inte beräknas tillförlitligt i tillräckligt många testpunkter.",
+    "Top rank reached.": "Högsta rangen nådd.",
+    "Next rank at level #:": "Nästa rang vid nivå #:",
+    "XP per week": "XP per vecka",
+    "Now": "Nu",
+    "#w ago": "# v sedan",
+    "Personal records": "Personliga rekord",
+    "Best clean streak": "Bästa felfria svit",
+    "Current: #": "Just nu: #",
+    "Exercises cleared": "Klarade uppgifter",
+    "of # scanned": "av # skannade",
+    "Lines verified": "Verifierade rader",
+    "# XP each": "# XP styck",
+    "Bounties claimed": "Vunna revanscher",
+    "Your nemeses": "Dina ärkefiender",
+    "# hits": "# träffar",
+    "# this month": "# den här månaden",
+    "No mistakes recorded yet. The kinds of mistakes you make will be tracked here so you can hunt them down.": "Inga fel registrerade ännu. Här samlas de typer av fel du gör så att du kan jaga ner dem.",
+    "of # on average. Lower means you are finding your own errors.": "av # i genomsnitt. Lägre betyder att du hittar dina egna fel.",
+    "Sign error": "Teckenfel",
+    "Slow down wherever a minus meets a bracket. Write the bracket out before you expand it.": "Sakta ner varje gång ett minustecken möter en parentes. Skriv ut parentesen innan du multiplicerar in.",
+    "Algebra slip": "Algebramiss",
+    "The calculus is fine; the simplifying is not. Do one algebraic move per line for a while.": "Analysen är rätt, men förenklingen är det inte. Gör ett algebraiskt steg per rad ett tag.",
+    "Chain rule missed": "Missad kedjeregel",
+    "Before differentiating, name the inner function out loud. If there is one, its derivative must appear as a factor.": "Säg den inre funktionen högt innan du deriverar. Finns det en, måste dess derivata vara med som faktor.",
+    "Product or quotient rule": "Produkt- eller kvotregeln",
+    "Write u, v, u′, v′ as side work first, then assemble. Do not assemble from memory.": "Skriv u, v, u′ och v′ som sidoräkning först och sätt sedan ihop. Sätt inte ihop ur minnet.",
+    "Wrong basic derivative": "Fel standardderivata",
+    "One standard derivative is not solid yet. Derive it once from the definition, then drill it.": "En standardderivata sitter inte än. Härled den en gång från definitionen och nöt sedan in den.",
+    "Indeterminate form mishandled": "Felhanterat obestämt uttryck",
+    "Substitute first and name the form (0/0, ∞/∞, ∞−∞…) before choosing a technique.": "Sätt in värdet först och namnge formen (0/0, ∞/∞, ∞−∞…) innan du väljer metod.",
+    "L’Hôpital misused": "Felanvänd l’Hôpital",
+    "Check the form is 0/0 or ∞/∞ every single time, and differentiate top and bottom separately.": "Kontrollera varje gång att formen är 0/0 eller ∞/∞, och derivera täljare och nämnare var för sig.",
+    "Limit law misapplied": "Felanvänd gränsvärdeslag",
+    "A limit law only applies when each separate limit exists. Check that before splitting.": "En gränsvärdeslag gäller bara när varje gränsvärde för sig existerar. Kontrollera det innan du delar upp.",
+    "Trig, exponential or log identity": "Trigonometrisk, exponential- eller logaritmidentitet",
+    "Keep a short list of the identities you actually use and test each one with a number when unsure.": "Ha en kort lista över de identiteter du faktiskt använder, och testa dem med ett tal när du är osäker.",
+    "Copying error": "Avskrivningsfel",
+    "A term changed between lines without a reason. Tick each term off as you carry it down.": "En term ändrades mellan raderna utan anledning. Bocka av varje term när du för över den.",
+    "Conceptual misunderstanding": "Begreppsligt missförstånd",
+    "This is about what the idea means, not the mechanics. Sketch the function and look at what it does.": "Det här handlar om vad begreppet betyder, inte om räknandet. Skissa funktionen och titta på vad den gör.",
+    "Integration technique": "Integrationsmetod",
+    "Differentiate your answer to test it. If you do not get the integrand back, the technique was applied wrongly.": "Derivera ditt svar för att testa det. Får du inte tillbaka integranden har metoden använts fel.",
+    "Other": "Övrigt",
+    "Language": "Språk",
+    "Appearance": "Utseende",
+    "Dark": "Mörkt",
+    "Light": "Ljust",
+    "API key (from platform.deepseek.com, kept only on this device)": "API-nyckel (från platform.deepseek.com, sparas bara på den här enheten)",
+    "Save and test the key": "Spara och testa nyckeln",
+    "Testing…": "Testar…",
+    "The key works.": "Nyckeln fungerar.",
+    "Your data": "Dina data",
+    "Your exercises and mistake history are stored only on this device. Export a backup now and then, and before changing phones.": "Dina uppgifter och din felhistorik sparas bara på den här enheten. Exportera en säkerhetskopia då och då, och innan du byter telefon.",
+    "Export a backup": "Exportera en säkerhetskopia",
+    "Restore from a backup": "Återställ från en säkerhetskopia",
+    "Erase history": "Radera historiken",
+    "How checking works": "Så fungerar kontrollen",
+    "The AI only reads your handwriting and writes hints. Whether a line is right is decided by calculation: each line is evaluated at several test values and compared with the problem itself. A “?” means a line could not be tested, not that it is wrong.": "AI:n läser bara din handstil och skriver ledtrådar. Om en rad är rätt avgörs genom beräkning: varje rad beräknas för flera testvärden och jämförs med själva uppgiften. Ett ”?” betyder att raden inte kunde testas, inte att den är fel.",
+    "Backup restored.": "Säkerhetskopian är återställd.",
+    "That file is not a Tangent backup.": "Den filen är ingen säkerhetskopia från Tangent.",
+    "History erased.": "Historiken är raderad.",
+    "Replace the history on this device with the # exercises in this backup?": "Ersätta historiken på den här enheten med de # uppgifterna i säkerhetskopian?",
+    "Erase all exercises and progress from this device? This cannot be undone.": "Radera alla uppgifter och alla framsteg från den här enheten? Det går inte att ångra.",
+    "Add your DeepSeek API key in Settings first.": "Lägg först till din API-nyckel från DeepSeek i inställningarna.",
+    "The AI took too long to answer. Try again.": "AI:n tog för lång tid på sig att svara. Försök igen.",
+    "Could not reach DeepSeek. Check your connection.": "Kunde inte nå DeepSeek. Kontrollera din anslutning.",
+    "DeepSeek rejected the API key. Check it in Settings.": "DeepSeek godkände inte API-nyckeln. Kontrollera den i inställningarna.",
+    "Your DeepSeek balance is empty. Top it up at platform.deepseek.com.": "Ditt saldo hos DeepSeek är slut. Fyll på det på platform.deepseek.com.",
+    "DeepSeek is rate-limiting requests. Wait a moment and try again.": "DeepSeek begränsar antalet förfrågningar just nu. Vänta en stund och försök igen.",
+    "The AI answered in a form I could not read. Try again.": "AI:n svarade i en form som inte gick att läsa. Försök igen.",
+    "That photo could not be opened.": "Det gick inte att öppna bilden.",
+    "Function sketcher": "Funktionsskissare",
+    "Scan": "Skanna",
+    "Type": "Skriv",
+    "Enter a function of x to see its curve, or of x and y to see its surface in 3D.": "Skriv in en funktion av x för att se dess kurva, eller av x och y för att se dess yta i 3D.",
+    "Use x for a curve, or x and y for a surface.": "Använd x för en kurva, eller x och y för en yta.",
+    "Try one": "Prova en",
+    "Recent": "Senaste",
+    "Reset": "Återställ",
+    "Zoom in": "Zooma in",
+    "Zoom out": "Zooma ut",
+    "Graph of the function": "Funktionens graf",
+    "Reading the function…": "Läser av funktionen…",
+    "That function could not be read. Tap Type to fix it.": "Funktionen kunde inte läsas. Tryck på Skriv för att rätta den.",
+    "Drag to rotate. Pinch or use the buttons to zoom.": "Dra för att rotera. Nyp eller använd knapparna för att zooma.",
+    "Drag to move. Pinch or use the buttons to zoom.": "Dra för att flytta. Nyp eller använd knapparna för att zooma."
+  };
+  const missing = new Set();
+  function tr(text) {
+    if (store.settings.lang !== 'sv') return text;
+    const m = /^(\s*)([\s\S]*?)(\s*)$/.exec(String(text));
+    const core = m[2];
+    if (!core) return text;
+    const one = (c) => {
+      if (SV[c] != null) return SV[c];
+      const nums = [];
+      const key = c.replace(/\d+(?:[.,]\d+)?/g, (n) => { nums.push(n); return '#'; });
+      if (SV[key] == null) return null;
+      let i = 0;
+      return SV[key].replace(/#/g, () => nums[i++]);
+    };
+    let out = one(core);
+    if (out == null && core.includes(' · ')) {
+      out = core.split(' · ').map((p) => { const t = one(p); if (t == null && /[A-Za-z]{3}/.test(p)) missing.add(p); return t == null ? p : t; }).join(' · ');
+    }
+    if (out == null) { if (/[A-Za-z]{3}/.test(core)) missing.add(core); out = core; }
+    return m[1] + out + m[3];
+  }
   let storageOk = true;
   function save() {
     try { localStorage.setItem(KEY, JSON.stringify(store)); storageOk = true; }
@@ -48,8 +317,9 @@
       else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
       else if (k in el && k !== 'list') el[k] = v;
       else el.setAttribute(k, v);
+      if (k === 'placeholder' || k === 'aria-label') el.setAttribute(k, tr(v));
     }
-    kids.flat().forEach((c) => { if (c != null && c !== false) el.append(c.nodeType ? c : document.createTextNode(String(c))); });
+    kids.flat().forEach((c) => { if (c != null && c !== false) el.append(c.nodeType ? c : document.createTextNode(tr(String(c)))); });
     return el;
   }
 
@@ -85,7 +355,7 @@
     if (d <= 0) return 'Today';
     if (d === 1) return 'Yesterday';
     if (d < 7) return d + ' days ago';
-    return new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+    return new Date(t).toLocaleDateString(store.settings.lang === 'sv' ? 'sv-SE' : undefined, { day: 'numeric', month: 'short' });
   };
 
   // ------------------------------------------------------------------ AI
@@ -134,6 +404,7 @@
     catch (e) { throw new Friendly('The AI answered in a form I could not read. Try again.'); }
   }
 
+  const langNote = () => store.settings.lang === 'sv' ? '\nWrite every sentence meant for the student in Swedish.' : '';
   const SYNTAX = `Expression syntax (strict, machine-parsed):
 - Plain text maths: + - * / ^ and parentheses. Always put function arguments in parentheses: sin(x)^2, never sin^2 x.
 - Functions: sin cos tan sec csc cot asin acos atan sinh cosh tanh sqrt(x) abs(x) exp(x) ln(x) log10(x). Constants: e, pi, Infinity.
@@ -200,19 +471,9 @@ Write briefly and calmly. No praise. Put maths between single dollar signs as La
 
 ${SYNTAX}`;
 
-  const CONCEPT = `You explain one calculus concept to an engineering student who can do the mechanics but has not yet grasped what the concept means. They are slow to get the meaning and fast once it clicks, so aim for the click: one clear picture, not a survey.
-
-Return one JSON object:
-{
-  "title": string,
-  "meaning": string,     // what it means in plain words, 3-5 sentences, built around one concrete picture (a graph, a moving object, a quantity changing)
-  "example": string,     // the idea shown with actual numbers, small enough to follow by eye
-  "misreading": string,  // the most common wrong way students understand this, and why it fails
-  "question": string,    // one question that can only be answered by understanding the meaning, not by computing with a rule
-  "answer": string       // the answer with a one-line reason
-}
-
-No formal definitions unless they help. No praise or filler. Put maths between single dollar signs as LaTeX.`;
+  const READFN = 'You read one mathematical function from a photo so that it can be plotted. Return one JSON object: {"expr": string}. ' +
+    'expr is only the right-hand side: for "y = x^2" return "x^2"; for "f(x, y) = x^2 - y^2" or "z = ..." return the expression in x and y. ' +
+    'Rename the variables to x, and y for a second variable.\n\n' + SYNTAX;
 
   // ------------------------------------------------------------------ images
   function shrink(file) {
@@ -282,7 +543,7 @@ No formal definitions unless they help. No praise or filler. Put maths between s
       const d = await ai({
         system: DIAGNOSE, effort: 'high',
         user: describe(ex, attempt) + '\n\nThe first wrong line is line ' + (k + 1) + '. ' +
-          (k === 0 ? 'It does not follow from the problem itself.' : 'Everything before it is correct.'),
+          (k === 0 ? 'It does not follow from the problem itself.' : 'Everything before it is correct.') + langNote(),
       });
       let verified = false;
       const fixExpr = d.fix && d.fix.expr;
@@ -305,7 +566,7 @@ No formal definitions unless they help. No praise or filler. Put maths between s
   async function nudge(ex, attempt) {
     attempt.nudging = true; attempt.nudgeError = null; refresh();
     try {
-      const d = await ai({ system: NUDGE, effort: 'high', user: describe(ex, attempt) + '\n\nThe student is stuck after the last line.' });
+      const d = await ai({ system: NUDGE, effort: 'high', user: describe(ex, attempt) + '\n\nThe student is stuck after the last line.' + langNote() });
       let verified = false;
       const expr = d.next && d.next.expr;
       if (expr) verified = Engine.check(ex.problem, [{ role: 'main', expr }]).results[0].status === 'ok';
@@ -383,17 +644,17 @@ No formal definitions unless they help. No praise or filler. Put maths between s
   const ICONS = {
     home: SVG('<path d="M4 20l1-5L16 4l4 4L9 19l-5 1z"/><path d="M14 6l4 4"/>'),
     patterns: SVG('<path d="M5 20V11M12 20V4M19 20v-6"/>'),
-    concepts: SVG('<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/>'),
+    sketch: SVG('<path d="M4 3v17h17"/><path d="M6 16c3 0 3.5-10 6.5-10S16 13 20 9"/>'),
     settings: SVG('<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>'),
     progress: SVG('<path d="M5 20V11M12 20V4M19 20v-6"/>'),
     keys: SVG('<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M8 14h8"/>'),
-    gear: SVG('<circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>'),
+    gear: SVG('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>'),
     camera: SVG('<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>'),
   };
   const icon = (n) => h('span', { innerHTML: ICONS[n], 'aria-hidden': 'true', style: 'display:grid' });
   const ART = '<svg viewBox="0 0 320 96" fill="none" stroke-linecap="round"><path d="M100 82L220 2" stroke="#1d2145" stroke-width="3.5"/><path d="M16 84C90 80 150 60 200 8" stroke="#5b4bff" stroke-width="7"/><circle cx="160.6" cy="41.3" r="9" fill="#fff" stroke="#1d2145" stroke-width="4"/><path d="M262 28v16M254 36h16M290 64v10M285 69h10" stroke="#1d2145" stroke-width="3.5"/><circle cx="44" cy="26" r="7" fill="#ff7a59"/><circle cx="302" cy="22" r="5" fill="#12996a"/></svg>';
-  const TABS = [['home', 'Play'], ['progress', 'Progress'], ['concepts', 'Concepts']];
-  const FOCUS = new Set(['capture', 'working', 'confirm', 'result', 'redo', 'concept', 'category', 'settings']);
+  const TABS = [['home', 'Play'], ['progress', 'Progress'], ['sketch', 'Sketch']];
+  const FOCUS = new Set(['capture', 'working', 'confirm', 'result', 'redo', 'category', 'settings']);
   const BADGE = (level) => '<svg viewBox="0 0 64 64"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#22e3ff"/><stop offset="1" stop-color="#7a5cff"/></linearGradient></defs>' +
     '<path d="M32 3l25 14.5v29L32 61 7 46.5v-29z" fill="#0b1230" stroke="url(#bg)" stroke-width="4" stroke-linejoin="round"/>' +
     '<path d="M32 11l18 10.5v21L32 53 14 42.5v-21z" fill="url(#bg)" opacity="0.22"/>' +
@@ -407,7 +668,7 @@ No formal definitions unless they help. No praise or filler. Put maths between s
       h('button', { 'aria-current': view.name === name ? 'page' : null, onclick: () => go({ name }) }, icon(name), label)));
     main.replaceChildren(...[].concat(VIEWS[view.name](view)).filter(Boolean));
   }
-  const topbar = (label, onBack, right) => h('div', { class: 'topbar' }, h('button', { onclick: onBack }, '‹ ' + label), right || h('span', {}));
+  const topbar = (label, onBack, right) => h('div', { class: 'topbar' }, h('button', { onclick: onBack }, '‹ ', label), right || h('span', {}));
 
   // ------------------------------------------------------------------ views
   const VIEWS = {};
@@ -471,7 +732,7 @@ No formal definitions unless they help. No praise or filler. Put maths between s
 
       focus ? h('h2', {}, 'Your nemesis') : null,
       focus ? h('button', { class: 'card nemesis', onclick: () => go({ name: 'category', id: focus.id }) },
-        h('div', { class: 'nemesis-name' }, CATS[focus.id].name), h('div', { class: 'muted' }, 'Hit you ' + focus.n + ' times in the last three weeks. ' + CATS[focus.id].advice)) : null,
+        h('div', { class: 'nemesis-name' }, CATS[focus.id].name), h('div', { class: 'muted' }, 'Hit you ' + focus.n + ' times in the last three weeks.', ' ', CATS[focus.id].advice)) : null,
 
       recent.length ? h('h2', {}, 'Mission log') : null,
       recent.length ? h('div', { class: 'list' }, recent.map(exerciseItem)) : null,
@@ -491,7 +752,7 @@ No formal definitions unless they help. No praise or filler. Put maths between s
     return [
       topbar('Back', () => go({ name: 'home' })),
       h('h1', {}, 'Try this one again'),
-      h('p', { class: 'lede' }, 'You made a mistake here ' + fmtDate(lastAttempt(ex).at).toLowerCase() + '. Solve it from scratch on paper without looking at your old work.'),
+      h('p', { class: 'lede' }, 'You made a mistake here before. Solve it from scratch on paper without looking at your old work.'),
       h('div', { class: 'card' }, problemEl(ex.problem)),
       h('div', { class: 'stack', style: 'margin-top:20px' },
         h('button', { class: 'btn primary', onclick: () => go({ name: 'capture', exId: ex.id }) }, 'Photograph my new solution'),
@@ -503,7 +764,7 @@ No formal definitions unless they help. No praise or filler. Put maths between s
   let shots = [];
   function pickPhotos(done) {
     const input = h('input', { type: 'file', accept: 'image/*', multiple: true, style: 'display:none', onchange: async (e) => {
-      for (const file of e.target.files) { try { shots.push(await shrink(file)); } catch (err) { alert(err.message); } }
+      for (const file of e.target.files) { try { shots.push(await shrink(file)); } catch (err) { alert(tr(err.message)); } }
       input.remove();
       done();
     } });
@@ -576,7 +837,7 @@ No formal definitions unless they help. No praise or filler. Put maths between s
       topbar('Cancel', () => go({ name: 'home' })),
       h('h1', {}, 'Is this what you wrote?'),
       h('p', { class: 'lede' }, 'Tap any line to correct it. The check is only as good as this transcription.'),
-      d.note && h('div', { class: 'notice' }, 'Unsure about: ' + d.note),
+      d.note && h('div', { class: 'notice' }, 'Unsure about:', ' ' + d.note),
       h('div', { class: 'steps' },
         h('button', { class: 'step problem', onclick: d.exId ? null : editProblem, disabled: !!d.exId },
           h('span', { class: 'n' }, ''),
@@ -663,14 +924,14 @@ No formal definitions unless they help. No praise or filler. Put maths between s
       : okCount + (okCount === 1 ? ' line' : ' lines') + ' verified by calculation' + (unv ? ', ' + unv + ' could not be checked.' : '.');
 
     const out = [
-      topbar('Done', () => go({ name: 'home' }), h('button', { onclick: () => { if (confirm('Delete this exercise from your history?')) { store.exercises = store.exercises.filter((e) => e !== ex); save(); go({ name: 'home' }); } } }, 'Delete')),
+      topbar('Done', () => go({ name: 'home' }), h('button', { onclick: () => { if (confirm(tr('Delete this exercise from your history?'))) { store.exercises = store.exercises.filter((e) => e !== ex); save(); go({ name: 'home' }); } } }, 'Delete')),
       h('div', { class: 'banner ' + ex.status }, h('div', { class: 'verdict' }, verdict), h('p', {}, sub),
         (() => {
           let combo = 0, run = 0;
           at.results.forEach((r) => { run = r === 'ok' ? run + 1 : 0; combo = Math.max(combo, run); });
           const fresh = v.fresh || {};
           const rewards = [at.gain ? '+' + at.gain + ' XP' : null, combo >= 2 ? 'Combo ×' + combo : null,
-            fresh.levelUp ? 'Level up! ' + rankOf(fresh.levelUp) + ' · ' + fresh.levelUp : null, fresh.newBest > 1 ? 'New best streak: ' + fresh.newBest : null].filter(Boolean);
+            fresh.levelUp ? 'Level up! · ' + rankOf(fresh.levelUp) + ' · ' + fresh.levelUp : null, fresh.newBest > 1 ? 'New best streak: ' + fresh.newBest : null].filter(Boolean);
           return rewards.length ? h('div', { class: 'rewards' }, rewards.map((r, i) => h('span', { class: 'reward', style: 'animation-delay:' + (i * 0.14) + 's' }, r))) : null;
         })()),
       h('div', { class: 'steps' },
@@ -765,7 +1026,7 @@ No formal definitions unless they help. No praise or filler. Put maths between s
     const nextRankLevel = (Math.floor((st.level - 1) / 2) + 1) * 2 + 1;
     return [
       h('div', { class: 'card levelcard' }, hud(st),
-        h('p', { class: 'muted small', style: 'margin:12px 0 0' }, st.rank === RANKS[RANKS.length - 1] ? 'Top rank reached.' : 'Next rank: ' + rankOf(nextRankLevel) + ' at level ' + nextRankLevel + '.')),
+        h('p', { class: 'muted small', style: 'margin:12px 0 0' }, st.rank === RANKS[RANKS.length - 1] ? 'Top rank reached.' : 'Next rank at level ' + nextRankLevel + ':', ' ', rankOf(nextRankLevel))),
       h('h2', {}, 'XP per week'),
       h('div', { class: 'card chart' }, st.weeks.map((w, i) => h('div', { class: 'col' },
         h('div', { class: 'val' }, w.xp || ''),
@@ -800,47 +1061,205 @@ No formal definitions unless they help. No praise or filler. Put maths between s
     ];
   };
 
-  // ---- concepts
-  const TOPICS = ['Limit', 'Continuity', 'Derivative', 'Differentiable vs continuous', 'Chain rule', 'Indeterminate forms', 'L’Hôpital’s rule', 'One-sided limits'];
-  VIEWS.concepts = (v) => {
-    const input = h('input', { type: 'text', placeholder: 'e.g. why 0/0 is not a number' });
-    const ask = async (q) => {
-      q = q.trim(); if (!q) return;
-      go({ name: 'working', message: 'Preparing an explanation…' });
-      try {
-        const card = await ai({ system: CONCEPT, effort: 'high', user: 'Concept: ' + q + '\nReturn the JSON.' });
-        store.concepts.unshift({ q, at: Date.now(), card }); save();
-        go({ name: 'concept', i: 0 });
-      } catch (e) { go({ name: 'concepts', error: e instanceof Friendly ? e.message : 'Something went wrong.' }); }
+  // ---- function sketcher
+  const RAMP = [[34, 227, 255], [122, 92, 255], [255, 61, 129]];
+  const ramp = (t) => {
+    t = Math.max(0, Math.min(1, t)) * 2;
+    const i = Math.min(1, Math.floor(t)), u = t - i, a = RAMP[i], b = RAMP[i + 1];
+    return 'rgb(' + a.map((v, k) => Math.round(v + (b[k] - v) * u)).join(',') + ')';
+  };
+  const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const tidy = (n) => String(Number(n.toPrecision(3)));
+  function fitCanvas(canvas) {
+    const dpr = window.devicePixelRatio || 1, w = canvas.clientWidth, hgt = canvas.clientHeight;
+    canvas.width = Math.round(w * dpr); canvas.height = Math.round(hgt * dpr);
+    const g = canvas.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, hgt);
+    return { g, w, H: hgt };
+  }
+
+  function draw2d(canvas, f, s) {
+    const { g, w, H } = fitCanvas(canvas);
+    if (!w) return;
+    const X = (x) => w / 2 + (x - s.cx) * s.scale, Y = (y) => H / 2 - (y - s.cy) * s.scale;
+    const x0 = s.cx - w / 2 / s.scale, x1 = s.cx + w / 2 / s.scale, y0 = s.cy - H / 2 / s.scale, y1 = s.cy + H / 2 / s.scale;
+    const raw = 64 / s.scale, pow = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1, 2, 5, 10].find((k) => k * pow >= raw) * pow;
+    g.font = '600 12px system-ui'; g.fillStyle = cssVar('--muted'); g.lineWidth = 1; g.strokeStyle = cssVar('--line');
+    const ax = Math.max(4, Math.min(w - 30, X(0) + 5)), ay = Math.max(14, Math.min(H - 6, Y(0) + 15));
+    g.beginPath();
+    for (let x = Math.ceil(x0 / step) * step; x <= x1; x += step) { g.moveTo(X(x), 0); g.lineTo(X(x), H); if (Math.abs(x) > step / 2) g.fillText(tidy(x), X(x) + 3, ay); }
+    for (let y = Math.ceil(y0 / step) * step; y <= y1; y += step) { g.moveTo(0, Y(y)); g.lineTo(w, Y(y)); if (Math.abs(y) > step / 2) g.fillText(tidy(y), ax, Y(y) - 4); }
+    g.stroke();
+    g.strokeStyle = cssVar('--muted'); g.lineWidth = 2;
+    g.beginPath(); g.moveTo(X(0), 0); g.lineTo(X(0), H); g.moveTo(0, Y(0)); g.lineTo(w, Y(0)); g.stroke();
+    g.fillText('x', w - 12, Math.max(14, Math.min(H - 6, Y(0) - 6))); g.fillText('y', Math.max(4, Math.min(w - 14, X(0) - 14)), 14);
+    g.strokeStyle = cssVar('--cyan'); g.lineWidth = 3; g.lineJoin = 'round'; g.shadowColor = cssVar('--cyan'); g.shadowBlur = 10;
+    g.beginPath();
+    let pen = false, last = 0;
+    for (let px = 0; px <= w; px += 0.5) {
+      const y = f(x0 + px / s.scale);
+      if (!Number.isFinite(y)) { pen = false; continue; }
+      const sy = Math.max(-5000, Math.min(5000, Y(y)));
+      if (pen && Math.abs(sy - last) < H) g.lineTo(px, sy); else g.moveTo(px, sy);
+      pen = true; last = sy;
+    }
+    g.stroke(); g.shadowBlur = 0;
+  }
+
+  const GRID = 30;
+  function sample3d(f, s) {
+    const zs = [];
+    for (let j = 0; j <= GRID; j++) for (let i = 0; i <= GRID; i++) zs.push(f(-s.range + 2 * s.range * i / GRID, -s.range + 2 * s.range * j / GRID));
+    const finite = zs.filter(Number.isFinite).sort((a, b) => a - b);
+    const lo = finite.length ? finite[Math.floor(finite.length * 0.03)] : -1, hi = finite.length ? finite[Math.ceil(finite.length * 0.97) - 1] : 1;
+    s.grid = { zs, lo, hi: hi - lo < 1e-9 ? lo + 1 : hi };
+  }
+  function draw3d(canvas, f, s) {
+    const { g, w, H } = fitCanvas(canvas);
+    if (!w) return;
+    if (!s.grid) sample3d(f, s);
+    const { zs, lo, hi } = s.grid, size = Math.min(w, H) * 0.29;
+    const ca = Math.cos(s.yaw), sa = Math.sin(s.yaw), cp = Math.cos(s.pitch), sp = Math.sin(s.pitch);
+    const project = (X, Y, Z) => {
+      const xr = X * ca - Y * sa, yr = X * sa + Y * ca;
+      return [w / 2 + xr * size, H / 2 + 10 - (Z * cp + yr * sp) * size, yr * cp - Z * sp];
     };
+    const zn = (z) => (Math.max(lo, Math.min(hi, z)) - lo) / (hi - lo);
+    const pts = zs.map((z, n) => {
+      const i = n % (GRID + 1), j = Math.floor(n / (GRID + 1));
+      return Number.isFinite(z) ? project(-1 + 2 * i / GRID, -1 + 2 * j / GRID, (zn(z) - 0.5) * 1.1) : null;
+    });
+    // floor frame and axes behind the surface
+    const corner = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([x, y]) => project(x, y, -0.55));
+    g.strokeStyle = cssVar('--line'); g.lineWidth = 1.5;
+    g.beginPath(); corner.forEach((p, i) => (i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]))); g.closePath(); g.stroke();
+    const quads = [];
+    for (let j = 0; j < GRID; j++) for (let i = 0; i < GRID; i++) {
+      const a = pts[j * (GRID + 1) + i], b = pts[j * (GRID + 1) + i + 1], c = pts[(j + 1) * (GRID + 1) + i + 1], d = pts[(j + 1) * (GRID + 1) + i];
+      if (!a || !b || !c || !d) continue;
+      const z = (zs[j * (GRID + 1) + i] + zs[(j + 1) * (GRID + 1) + i + 1]) / 2;
+      quads.push({ a, b, c, d, depth: (a[2] + b[2] + c[2] + d[2]) / 4, t: zn(z) });
+    }
+    quads.sort((p, q) => q.depth - p.depth);
+    g.lineWidth = 0.7; g.strokeStyle = 'rgba(6, 10, 24, 0.55)';
+    quads.forEach((q) => {
+      g.fillStyle = ramp(q.t); g.globalAlpha = 0.92;
+      g.beginPath(); g.moveTo(q.a[0], q.a[1]); g.lineTo(q.b[0], q.b[1]); g.lineTo(q.c[0], q.c[1]); g.lineTo(q.d[0], q.d[1]); g.closePath(); g.fill(); g.stroke();
+    });
+    g.globalAlpha = 1; g.font = '700 15px system-ui'; g.fillStyle = cssVar('--ink'); g.strokeStyle = cssVar('--muted'); g.lineWidth = 2;
+    const o = project(-1, -1, -0.55);
+    [['x', project(1.18, -1, -0.55)], ['y', project(-1, 1.18, -0.55)], ['z', project(-1, -1, 0.75)]].forEach(([name, p]) => {
+      g.beginPath(); g.moveTo(o[0], o[1]); g.lineTo(p[0], p[1]); g.stroke();
+      g.fillText(name, p[0] + (p[0] >= o[0] ? 5 : -14), p[1] + 5);
+    });
+  }
+
+  let sketch = { expr: '', s2: null, s3: null };
+  function setSketch(expr) {
+    expr = String(expr || '').split('=').pop().trim();
+    sketch = { expr, s2: { cx: 0, cy: 0, scale: 40 }, s3: { yaw: 0.75, pitch: 0.55, range: 3, grid: null } };
+    try {
+      Engine.fn(expr, ['x', 'y'])(0.3, 0.4);
+      store.sketches = [expr].concat(store.sketches.filter((e) => e !== expr)).slice(0, 6); save();
+    } catch (e) { /* shown as an error in the view */ }
+    go({ name: 'sketch' });
+  }
+
+  function interact(canvas, mode, s, redraw) {
+    const touches = new Map();
+    let gap = 0;
+    const spread = () => { const p = [...touches.values()]; return Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y); };
+    const zoom = (k) => {
+      if (mode === '2d') s.scale = Math.max(2, Math.min(4000, s.scale * k));
+      else { s.range = Math.max(0.25, Math.min(50, s.range / k)); s.grid = null; }
+    };
+    canvas.addEventListener('pointerdown', (e) => { canvas.setPointerCapture(e.pointerId); touches.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (touches.size === 2) gap = spread(); });
+    canvas.addEventListener('pointermove', (e) => {
+      const p = touches.get(e.pointerId);
+      if (!p) return;
+      const dx = e.clientX - p.x, dy = e.clientY - p.y;
+      p.x = e.clientX; p.y = e.clientY;
+      if (touches.size === 1) {
+        if (mode === '2d') { s.cx -= dx / s.scale; s.cy += dy / s.scale; }
+        else { s.yaw += dx * 0.012; s.pitch = Math.max(0.1, Math.min(1.5, s.pitch + dy * 0.012)); }
+      } else if (touches.size === 2) {
+        const now = spread();
+        if (gap > 0 && now > 0) zoom(now / gap);
+        gap = now;
+      }
+      redraw();
+    });
+    const end = (e) => { touches.delete(e.pointerId); };
+    canvas.addEventListener('pointerup', end); canvas.addEventListener('pointercancel', end);
+    canvas.addEventListener('wheel', (e) => { e.preventDefault(); zoom(e.deltaY < 0 ? 1.15 : 1 / 1.15); redraw(); }, { passive: false });
+    return zoom;
+  }
+
+  const EXAMPLES = ['sin(x)', 'x^3 - 3x', 'e^(-x^2)', '1/x', 'x^2 + y^2', 'x^2 - y^2', 'sin(x)*cos(y)', 'e^(-(x^2+y^2))'];
+  VIEWS.sketch = (v) => {
+    const expr = sketch.expr;
+    let mode = null, f = null, bad = false, shown = null;
+    if (expr) {
+      try {
+        const names = Engine.symbols(expr);
+        mode = names.includes('y') && names.includes('x') ? '3d' : '2d';
+        const variable = mode === '3d' ? 'x' : guessVar(expr);
+        f = Engine.fn(expr, mode === '3d' ? ['x', 'y'] : [variable]);
+        shown = (mode === '3d' ? 'z = ' : 'y = ') + Engine.tex(expr, variable);
+      } catch (e) { bad = true; }
+    }
+    const type = () => editor({ title: 'Function', expr, variable: 'x', isProblem: true, help: 'Use x for a curve, or x and y for a surface.', onSave: (e) => { if (e) setSketch(e); } });
+    const scan = () => pickPhotos(async () => {
+      const images = shots.slice(); shots = [];
+      if (!images.length) return;
+      go({ name: 'working', message: 'Reading the function…' });
+      try { const r = await ai({ system: READFN, images, effort: 'low', user: 'Return the JSON.' }); setSketch(r.expr); }
+      catch (e) { go({ name: 'sketch', error: e instanceof Friendly ? e.message : 'Something went wrong while reading the photo.' }); }
+    });
+    const canvas = f ? h('canvas', { class: 'plot', 'aria-label': 'Graph of the function' }) : null;
+    let controls = null;
+    if (canvas) {
+      const s = mode === '3d' ? sketch.s3 : sketch.s2;
+      const redraw = () => (mode === '3d' ? draw3d : draw2d)(canvas, f, s);
+      const zoom = interact(canvas, mode, s, redraw);
+      requestAnimationFrame(redraw);
+      const range = h('span', { class: 'muted small' });
+      const note = () => { range.textContent = mode === '3d' ? 'x, y: −' + tidy(s.range) + ' … ' + tidy(s.range) + '   z: ' + tidy(s.grid ? s.grid.lo : 0) + ' … ' + tidy(s.grid ? s.grid.hi : 0) : ''; };
+      const press = (k) => () => { zoom(k); redraw(); note(); };
+      requestAnimationFrame(note);
+      canvas.addEventListener('pointerup', note);
+      controls = h('div', {},
+        h('div', { class: 'plotbar' },
+          h('button', { class: 'key', 'aria-label': 'Zoom out', onclick: press(1 / 1.5) }, '−'),
+          h('button', { class: 'key', 'aria-label': 'Zoom in', onclick: press(1.5) }, '+'),
+          h('button', { class: 'key act', onclick: () => { const e = sketch.expr; sketch.s2 = { cx: 0, cy: 0, scale: 40 }; sketch.s3 = { yaw: 0.75, pitch: 0.55, range: 3, grid: null }; sketch.expr = e; refresh(); } }, 'Reset')),
+        h('p', { class: 'muted small', style: 'margin:8px 0 0' }, mode === '3d' ? 'Drag to rotate. Pinch or use the buttons to zoom.' : 'Drag to move. Pinch or use the buttons to zoom.'),
+        range);
+    }
     return [
-      h('h1', {}, 'Concepts'),
-      h('p', { class: 'lede' }, 'For when you can do the steps but do not yet see what the idea means.'),
+      h('h1', {}, 'Function sketcher'),
       v.error && h('div', { class: 'notice bad' }, v.error),
-      h('div', { class: 'chips' }, TOPICS.map((t) => h('button', { onclick: () => ask(t) }, t))),
-      h('label', { class: 'field' }, h('span', {}, 'Or ask about something specific'), input),
-      h('button', { class: 'btn', onclick: () => ask(input.value) }, 'Explain it'),
-      store.concepts.length ? h('h2', {}, 'Saved') : null,
-      store.concepts.length ? h('div', { class: 'list' }, store.concepts.map((c, i) => h('button', { class: 'item', onclick: () => go({ name: 'concept', i }) },
-        h('div', { class: 'grow' }, c.card.title || c.q), h('span', { class: 'meta' }, fmtDate(c.at))))) : null,
+      h('div', { class: 'row' },
+        h('button', { class: 'btn primary', onclick: scan }, icon('camera'), 'Scan'),
+        h('button', { class: 'btn', onclick: type }, icon('keys'), 'Type')),
+      bad ? h('div', { class: 'notice bad', style: 'margin-top:12px' }, 'That function could not be read. Tap Type to fix it.') : null,
+      shown ? h('button', { class: 'card fx', onclick: type }, mathEl(shown)) : null,
+      canvas ? h('div', { class: 'plotwrap' }, canvas) : null,
+      controls,
+      !expr ? h('p', { class: 'lede', style: 'margin-top:14px' }, 'Enter a function of x to see its curve, or of x and y to see its surface in 3D.') : null,
+      h('h2', {}, 'Try one'),
+      h('div', { class: 'chips' }, EXAMPLES.map((e) => h('button', { onclick: () => setSketch(e) }, mathEl(Engine.tex(e))))),
+      store.sketches.length ? h('h2', {}, 'Recent') : null,
+      store.sketches.length ? h('div', { class: 'list' }, store.sketches.map((e) => h('button', { class: 'item', onclick: () => setSketch(e) },
+        h('div', { class: 'grow' }, mathEl((() => { try { return Engine.tex(e); } catch (err) { return ''; } })()))))) : null,
     ];
   };
 
-  VIEWS.concept = (v) => {
-    const c = store.concepts[v.i];
-    if (!c) return VIEWS.concepts({});
-    const k = c.card;
-    const block = (label, text) => text ? [h('h2', {}, label), h('p', {}, rich(text))] : [];
-    return [
-      topbar('Concepts', () => go({ name: 'concepts' }), h('button', { onclick: () => { store.concepts.splice(v.i, 1); save(); go({ name: 'concepts' }); } }, 'Delete')),
-      h('h1', {}, k.title || c.q),
-      block('What it means', k.meaning), block('With numbers', k.example), block('The usual misreading', k.misreading),
-      block('Check yourself', k.question),
-      v.open ? h('div', { class: 'card' }, rich(k.answer)) : h('button', { class: 'btn', onclick: () => { v.open = true; refresh(); } }, 'Show the answer'),
-    ].flat();
-  };
-
   // ---- settings
+  const seg = (options, current, onPick) => h('div', { class: 'seg' }, options.map(([val, label]) =>
+    h('button', { class: val === current ? 'on' : '', 'aria-pressed': String(val === current), onclick: () => onPick(val) }, label)));
   VIEWS.settings = (v) => {
     const keyInput = h('input', { type: 'password', value: store.settings.key, placeholder: 'sk-…', autocomplete: 'off', onchange: (e) => { store.settings.key = e.target.value.trim(); save(); } });
     const test = async () => {
@@ -859,7 +1278,7 @@ No formal definitions unless they help. No praise or filler. Put maths between s
       try {
         const data = JSON.parse(await e.target.files[0].text());
         if (!Array.isArray(data.exercises)) throw new Error();
-        if (!confirm('Replace the history on this device with the ' + data.exercises.length + ' exercises in this backup?')) return;
+        if (!confirm(tr('Replace the history on this device with the ' + data.exercises.length + ' exercises in this backup?'))) return;
         const key = store.settings.key;
         store = Object.assign(blank(), data); store.settings.key = store.settings.key || key; save();
         go({ name: 'settings', status: 'Backup restored.' });
@@ -868,6 +1287,10 @@ No formal definitions unless they help. No praise or filler. Put maths between s
     return [
       topbar('Back', () => go({ name: 'home' })),
       h('h1', {}, 'Settings'),
+      h('h2', {}, 'Language'),
+      seg([['en', 'English'], ['sv', 'Svenska']], store.settings.lang, (val) => { store.settings.lang = val; save(); applyTheme(); go({ name: 'settings' }); }),
+      h('h2', {}, 'Appearance'),
+      seg([['dark', 'Dark'], ['light', 'Light']], store.settings.theme, (val) => { store.settings.theme = val; save(); applyTheme(); go({ name: 'settings' }); }),
       h('h2', {}, 'DeepSeek'),
       h('label', { class: 'field' }, h('span', {}, 'API key (from platform.deepseek.com, kept only on this device)'), keyInput),
       h('button', { class: 'btn', onclick: test }, 'Save and test the key'),
@@ -878,14 +1301,14 @@ No formal definitions unless they help. No praise or filler. Put maths between s
       h('div', { class: 'stack' },
         h('button', { class: 'btn', onclick: exportData }, 'Export a backup'),
         h('button', { class: 'btn', onclick: () => importer.click() }, 'Restore from a backup'),
-        h('button', { class: 'btn quiet', onclick: () => { if (confirm('Erase all exercises, patterns and saved concepts from this device? This cannot be undone.')) { const key = store.settings.key; store = blank(); store.settings.key = key; save(); go({ name: 'settings', status: 'History erased.' }); } } }, 'Erase history')),
+        h('button', { class: 'btn quiet', onclick: () => { if (confirm(tr('Erase all exercises and progress from this device? This cannot be undone.'))) { const key = store.settings.key; store = blank(); store.settings.key = key; save(); go({ name: 'settings', status: 'History erased.' }); } } }, 'Erase history')),
       h('h2', {}, 'How checking works'),
       h('p', { class: 'muted' }, 'The AI only reads your handwriting and writes hints. Whether a line is right is decided by calculation: each line is evaluated at several test values and compared with the problem itself. A “?” means a line could not be tested, not that it is wrong.'),
     ];
   };
 
   // ------------------------------------------------------------------ start
-  window.Tangent = { go, get store() { return store; } };
+  window.Tangent = { go, missing, get store() { return store; } };
   refresh();
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 })();

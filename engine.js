@@ -316,6 +316,25 @@
     return splitSides(normalise(str)).map((s) => read(s).toTex({ handler, parenthesis: 'auto', implicit: 'hide' })).join(' = ');
   }
 
-  root.Engine = { check, tex, parse, normalise };
+  // A plain function of the given variables, for plotting. Uses the right-hand side of "y = ...".
+  function fn(str, vars) {
+    const sides = splitSides(normalise(str));
+    const node = resolveD(read(sides[sides.length - 1]), vars[0]);
+    const params = freeSymbols([node], vars[0]).filter((p) => !vars.includes(p));
+    return (...vals) => {
+      const scope = {};
+      params.forEach((p) => { scope[p] = 1; });
+      vars.forEach((v, i) => { scope[v] = vals[i]; });
+      ctx = { variable: vars[0], scope, err: 0, center: 0 };
+      const v = evalNode(node, scope);
+      return v === DNE ? NaN : v;
+    };
+  }
+  function symbols(str) {
+    const sides = splitSides(normalise(str));
+    return freeSymbols([read(sides[sides.length - 1])], '');
+  }
+
+  root.Engine = { check, tex, parse, normalise, fn, symbols };
   if (typeof module !== 'undefined') module.exports = root.Engine;
 })(typeof window !== 'undefined' ? window : globalThis);
